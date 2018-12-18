@@ -1,2 +1,2 @@
 # fort-bpsf
-Takes HDF5 file of cartesian geometries and converts it to symmetry functions
+Takes HDF5 file of cartesian geometries and converts its contents to symmetry functions
