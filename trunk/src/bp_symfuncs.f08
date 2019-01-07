@@ -43,8 +43,17 @@ module bp_symfuncs
     ! integer, external :: omp_get_thread_num, omp_get_num_threads
     
     type basis
-    real*8, dimension(:,:), allocatable :: b
+        ! The basis functions. First dimension corresponds to atom, second dim
+        ! is the basis value
+        real*8, dimension(:,:), allocatable :: b
     end type basis
+
+!    type mol_id
+!        ! This links the molecule with the atom basis. There is one entry for
+!        ! each atom of a given element. 0 would correspond to belonging to the
+!        ! first molecule, 1 the second, etc.
+!        integer, dimension(:), allocatable :: m
+!    end type mol_id
 
     ! Timing variables
     logical :: dotime = .true.
@@ -260,7 +269,8 @@ contains
         tmp_ang_bas(:, :, :) = 0
         ! Calculate the number of upper triangle indices
         ut = natm*(natm-1)/2
-        ! if (omp_get_thread_num() .eq. 0) then
+        ! Go throgh the atoms in the geometry and find out what element each
+        ! atom is. Then tally the number of each element.
  do_natoms: do i =1, natm
                 el_found = .false.
                 do j=1, num_els
@@ -279,9 +289,34 @@ contains
            enddo do_natoms
         ! endif
 
-        ! Calculate the r-ij vectors and distances and cutoff
-   !$OMP PARALLEL DO private(x, i, j, i_btype, j_btype, k, tmp_rad,a,b,c,e) &
-   !$OMP& reduction(+:tmp_rad_bas)
+         ! generate the cosine inds. This is an array of all of the unique
+         ! angles in the system.
+        num_cos = 0
+find_cos: do i=1, natm
+            do j = 1, natm - 1
+                do k=j+1, natm
+                    if (i .eq. j) then
+                        goto 200
+                    elseif ( i .eq. k) then
+                        goto 300
+                    elseif (j .eq. k) then
+                        goto 300
+                    endif
+                    num_cos = num_cos + 1
+                    cos_inds(:,num_cos) = [i, j, k]
+            300 continue
+                enddo
+        200 continue
+            enddo
+        enddo find_cos
+
+   !$OMP PARALLEL private(x, i, j, k, i_btype, j_btype,  tmp_rad,a,b,c,e) &
+   !$OMP& private(my_type, mycos, myexp, myfc, myang) &
+   !$OMP& reduction(+:tmp_rad_bas) &
+   !$OMP& reduction(+:tmp_ang_bas)
+   !$OMP    DO
+           ! Calculate the r-ij vectors and distances and cutoff
+
 calc_bonds: do x=0, ut - 1
             i = x/natm
             j = mod(x, natm)
@@ -341,40 +376,8 @@ calc_bonds: do x=0, ut - 1
                 tmp_rad_bas(a:b, c, e) =  tmp_rad_bas(a:b, c, e) + tmp_rad(:)
             endif
             enddo calc_bonds
-    !$OMP END PARALLEL DO
-
-
-save_rad: do i=1, num_els
-            i_end = rad_s(i) + g_num_of_els(i) - 1
-            ! print *, rad_s(i), i_end
-
-            rad_bas(i)%b(:,rad_s(i):i_end) = tmp_rad_bas(:radbas_length(i), &
-            :g_num_of_els(i), i)
-            rad_s(i) = i_end + 1
-
-        enddo save_rad
- ! generate the cosine inds
-        num_cos = 0
-find_cos: do i=1, natm
-            do j = 1, natm - 1
-                do k=j+1, natm
-                    if (i .eq. j) then
-                        goto 200
-                    elseif ( i .eq. k) then
-                        goto 300
-                    elseif (j .eq. k) then
-                        goto 300
-                    endif
-                    num_cos = num_cos + 1
-                    cos_inds(:,num_cos) = [i, j, k]
-            300 continue
-                enddo
-        200 continue
-            enddo
-        enddo find_cos
-!$OMP PARALLEL DO &
-!$OMP& private(x, i, j, k, my_type, mycos, myexp, myfc, myang, a, b, c, e) &
-!$OMP& reduction(+:tmp_ang_bas)
+    !$OMP ENDDO
+    !$OMP DO
 calc_ang: do x=1, num_cos
             i = cos_inds(1, x)
             j = cos_inds(2, x)
@@ -419,8 +422,20 @@ calc_ang: do x=1, num_cos
             tmp_ang_bas(a:b, c, e) = tmp_ang_bas(a:b, c, e) + myang(:)
 
         enddo calc_ang
-!$OMP END PARALLEL DO
-! Copy the temp basis to the real
+!$OMP   ENDDO
+!$OMP END PARALLEL
+! Copy the temporary radial basis set to our main basis
+save_rad: do i=1, num_els
+            i_end = rad_s(i) + g_num_of_els(i) - 1
+            ! print *, rad_s(i), i_end
+
+            rad_bas(i)%b(:,rad_s(i):i_end) = tmp_rad_bas(:radbas_length(i), &
+            :g_num_of_els(i), i)
+            rad_s(i) = i_end + 1
+
+        enddo save_rad
+
+! Copy the temp anular basis to the real
 save_ang: do i=1, num_els
             i_end = ang_s(i) + g_num_of_els(i) - 1
             ang_bas(i)%b(:,ang_s(i):i_end) = tmp_ang_bas(:angbas_length(i), &
