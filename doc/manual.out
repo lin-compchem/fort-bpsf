@@ -1,0 +1,12 @@
+\BOOKMARK [1][-]{section.1}{Introduction}{}% 1
+\BOOKMARK [1][-]{section.2}{Usage}{}% 2
+\BOOKMARK [2][-]{subsection.2.1}{Installation and Execution}{section.2}% 3
+\BOOKMARK [2][-]{subsection.2.2}{Testing the program}{section.2}% 4
+\BOOKMARK [2][-]{subsection.2.3}{Input HDF5 Structure}{section.2}% 5
+\BOOKMARK [2][-]{subsection.2.4}{Output HDF5 Structure}{section.2}% 6
+\BOOKMARK [2][-]{subsection.2.5}{Basis vector layout}{section.2}% 7
+\BOOKMARK [2][-]{subsection.2.6}{Creating an HDF5 File}{section.2}% 8
+\BOOKMARK [1][-]{section.3}{Symmetry Function Definitions}{}% 9
+\BOOKMARK [2][-]{subsection.3.1}{Input Vectors}{section.3}% 10
+\BOOKMARK [2][-]{subsection.3.2}{ Graphs and Explanation}{section.3}% 11
+\BOOKMARK [2][-]{subsection.3.3}{Symmetry Function Gradient}{section.3}% 12
