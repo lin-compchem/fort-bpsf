@@ -435,8 +435,8 @@ save_basis: do i=1, num_els
             ang_bas(i)%b(:,bas_s(i):i_end) = tmp_ang_bas(:angbas_length(i), &
                 :g_num_of_els(i), i)
             mol_ids(i)%bas2mol(bas_s(i):i_end) = g - 1
+            mol2bas(1:2,i,g) = [bas_s(i)-1, i_end]
             bas_s(i) = i_end + 1
-            !mol2bas(1:2,i,g) = [bas_s(i)-1, i_end]
 
 
         enddo save_basis

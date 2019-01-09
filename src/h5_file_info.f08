@@ -255,7 +255,6 @@ module h5_file_info
        b2m_dims(:) = Finum_of_els(:)
        m2b_dims(:) = [2, FInum_els, num_geoms]
        allocate(mol2bas(2, FInum_els, num_geoms))
-       print *, 'mol2bas', shape(mol2bas)
  
  
     end subroutine allocate_arrays
@@ -355,53 +354,53 @@ module h5_file_info
           CALL h5dclose_f(dset_id , error)
           CALL h5sclose_f(dspace_id, error)
           if (error .ne. 0) goto 1035
-!      !
-!      ! BAS2MOL
-!      !
-!      ! h5screate_simple_f(rank, dims, dspace_id, error)
-!         CALL h5screate_simple_f(1, b2m_dims(i), dspace_id, error)
-!         if (error .ne. 0) goto 1060
-!      !
-!      ! Create the dataset with default properties.
-!      !
-!          CALL h5dcreate_f(ofi, ofi_b2m_names(i), H5T_STD_I32LE , dspace_id, &
-!             dset_id, error)
-!          if (error .ne. 0) goto 1065
-!      !
-!      ! Write the data
-!      !
-!          CALL h5dwrite_f(dset_id, H5T_STD_I32LE, [mol_ids(i)%bas2mol(:)], &
-!              [b2m_dims(i)], error)
-!          if (error .ne. 0) goto 1070
-!      !
-!      ! Close and release resources.
-!      !
-!          CALL h5dclose_f(dset_id , error)
-!          CALL h5sclose_f(dspace_id, error)
-!          if (error .ne. 0) goto 1075
+      !
+      ! BAS2MOL
+      !
+      ! h5screate_simple_f(rank, dims, dspace_id, error)
+         CALL h5screate_simple_f(1, b2m_dims(i), dspace_id, error)
+         if (error .ne. 0) goto 1060
+      !
+      ! Create the dataset with default properties.
+      !
+          CALL h5dcreate_f(ofi, ofi_b2m_names(i), H5T_STD_I32LE , dspace_id, &
+             dset_id, error)
+          if (error .ne. 0) goto 1065
+      !
+      ! Write the data
+      !
+          CALL h5dwrite_f(dset_id, H5T_STD_I32LE, [mol_ids(i)%bas2mol(:)], &
+              [b2m_dims(i)], error)
+          if (error .ne. 0) goto 1070
+      !
+      ! Close and release resources.
+      !
+          CALL h5dclose_f(dset_id , error)
+          CALL h5sclose_f(dspace_id, error)
+          if (error .ne. 0) goto 1075
       enddo
-!  !
-!  ! Write the mol2bas data structure
-!  !
-!     CALL h5screate_simple_f(3, m2b_dims, dspace_id, error)
-!     if (error .ne. 0) goto 1040
-!  !
-!  ! Create the dataset with default properties.
-!  !
-!      CALL h5dcreate_f(ofi, 'molecule_to_basis_inds', H5T_STD_I32LE , &
-!         dspace_id, dset_id,  error)
-!      if (error .ne. 0) goto 1045
-!  !
-!  ! Write the data
-!  !
-!      CALL h5dwrite_f(dset_id, H5T_STD_I32LE, mol2bas(:,:,:), m2b_dims, error)
-!      if (error .ne. 0) goto 1050
-!  !
-!  ! Close and release resources.
-!  !
-!      CALL h5dclose_f(dset_id , error)
-!      CALL h5sclose_f(dspace_id, error)
-!      if (error .ne. 0) goto 1055
+  !
+  ! Write the mol2bas data structure
+  !
+     CALL h5screate_simple_f(3, m2b_dims, dspace_id, error)
+     if (error .ne. 0) goto 1040
+  !
+  ! Create the dataset with default properties.
+  !
+      CALL h5dcreate_f(ofi, 'molecule_to_basis_inds', H5T_STD_I32LE , &
+         dspace_id, dset_id,  error)
+      if (error .ne. 0) goto 1045
+  !
+  ! Write the data
+  !
+      CALL h5dwrite_f(dset_id, H5T_STD_I32LE, mol2bas(:,:,:), m2b_dims, error)
+      if (error .ne. 0) goto 1050
+  !
+  ! Close and release resources.
+  !
+      CALL h5dclose_f(dset_id , error)
+      CALL h5sclose_f(dspace_id, error)
+      if (error .ne. 0) goto 1055
   !
   ! Close the file.
   !
