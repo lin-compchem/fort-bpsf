@@ -25,13 +25,14 @@ program save_bp_symfuncs
    call FI_clean_inputs()
 
    ! Initialize the arrays
-   call initialize_element_pars() ! must be called before allocate_basis
-   call create_rad_ang_basis(rad_bas, ang_bas, atmnm)
+   call initialize_element_pars() ! must be called before allocate_arrays
+   call allocate_arrays(rad_bas, ang_bas, atmnm, mol_ids, mol2bas)
 
    ! Woohoo!, the tricky parts are over now. Lets crunch some numbers
    call calculate_basis(rad_bas, ang_bas, coords, atmnm, natoms, max_atoms, &
-                        num_geoms, FInum_of_els)
-   call save_basis(rad_bas, ang_bas, num_els, of_path)
+                        num_geoms, FInum_of_els, mol_ids, mol2bas)
+   call save_basis(rad_bas, ang_bas, num_els, of_path, mol_ids, mol2bas)
+   call deallocate_arrays()
 
    
 

@@ -2,7 +2,7 @@ module h5_file_info
     use h5d
     use hdf5
     use h5s
-    use bp_symfuncs, only : basis
+    use bp_symfuncs, only : basis, mol_id
     ! Contains the h5 file data
  
     ! Dimensions
@@ -20,11 +20,22 @@ module h5_file_info
     integer, parameter :: FInum_els = 2
     integer, allocatable :: FInum_of_els(:)
  
+    ! The h5 output vars
     type(basis), dimension(FInum_els) :: ang_bas, rad_bas
-    ! type(mol_id), dimension(FInum_els) :: mol_ids
+    type(mol_id), dimension(FInum_els) :: mol_ids
+    ! The below is an array with dimensions(2, number_of_elements, num_geoms)
+    ! The 2 are the range of indicies in the larger basis funciton array.
+    ! I.e. if in the list of oxygen basis functions, molecule 6 was from indices
+    ! 400 to 405 (fortran style index), then (:, 2, 6) = (399 to 405)
+    ! Thats python style, would access from 0 based array terms:
+    !     399 400 401 402 403 404
+    integer*4, allocatable :: mol2bas(:,:,:)
  
-    ! first dim is x/y length, second el number
-    integer(kind=8), allocatable :: ang_dims(:,:), rad_dims(:,:)
+    ! first dim is x/y length, second el number for ang/rad dims
+    ! B2m dims is just vector with num of els in all geoms as the value
+    ! m2b dims is the dimensions for mol2bas
+    integer(kind=8), allocatable :: ang_dims(:,:), rad_dims(:,:), b2m_dims(:)
+    integer(kind=8) :: m2b_dims(3)
  
     ! These are the names in the hdf5 file
     character(len=13), parameter :: atmnm_ds_name = "atomic_number"
@@ -33,7 +44,7 @@ module h5_file_info
 
     character(len=18), dimension(2), parameter :: ofi_rad_names = ["h_radial_sym_funcs", "o_radial_sym_funcs"]
     character(len=19), dimension(2), parameter :: ofi_ang_names = ["h_angular_sym_funcs", "o_angular_sym_funcs"]
-
+    character(len=19), dimension(2), parameter :: ofi_b2m_names = ["h_basis_to_molecule", "o_basis_to_molecule"]
  
     ! These are the handles for the input datasets
     integer(HID_T) atmnm_in, coord_in, natom_in
@@ -214,14 +225,15 @@ module h5_file_info
     end subroutine get_num_of_els
  
  
-    subroutine create_rad_ang_basis(rad_bas, ang_bas, atmnms)
+    subroutine allocate_arrays(rad_bas, ang_bas, atmnms, mol_ids, mol2bas)
        ! Allocate the memory for the radial and angular basis functions
        ! Also allocate the memory for the mol_id variable
        use bp_symfuncs, only : num_els, els, radbas_length, angbas_length
        implicit none
        ! I/O vars
        type(basis), dimension(num_els), intent(out) :: ang_bas, rad_bas
-       ! type(mol_id), dimension(num_els), intent(out) :: mol_ids
+       type(mol_id), dimension(num_els), intent(out) :: mol_ids
+       integer*4, allocatable, intent(out) :: mol2bas(:,:,:)
        integer*1, intent(in) :: atmnms(:,:)
        ! Local vars
        integer i
@@ -230,6 +242,7 @@ module h5_file_info
        allocate(FInum_of_els(FInum_els))
        allocate(rad_dims(2, FInum_els))
        allocate(ang_dims(2, FInum_els))
+       allocate(b2m_dims(FInum_els))
        ! Rad basis
        do i=1, FInum_els
           call get_num_of_els(els(i), atmnms, Finum_of_els(i))
@@ -237,23 +250,52 @@ module h5_file_info
           allocate(rad_bas(i)%b(rad_dims(1,i), rad_dims(2,i)))
           ang_dims(:,i) = [angbas_length(i), Finum_of_els(i)]
           allocate(ang_bas(i)%b(ang_dims(1,i), ang_dims(2,i)))
+          allocate(mol_ids(i)%bas2mol(Finum_of_els(i)))
        enddo
+       b2m_dims(:) = Finum_of_els(:)
+       m2b_dims(:) = [2, FInum_els, num_geoms]
+       allocate(mol2bas(2, FInum_els, num_geoms))
+       print *, 'mol2bas', shape(mol2bas)
  
  
-    end subroutine create_rad_ang_basis
+    end subroutine allocate_arrays
 
 
-    subroutine save_basis(rad_bas, ang_bas, num_els, of_path)
+    subroutine deallocate_arrays()
+       ! Deallocate the memory for the radial and angular basis functions
+       ! Deallocate the memory for the mol_id variable
+       use bp_symfuncs, only : num_els, els, radbas_length, angbas_length
+       implicit none
+       ! Local vars
+       integer i
+
+       ! Begin Subroutine
+       do i=1, FInum_els
+          deallocate(rad_bas(i)%b)
+          deallocate(ang_bas(i)%b)
+          deallocate(mol_ids(i)%bas2mol)
+       enddo
+       deallocate(mol2bas)
+
+       return
+
+    end subroutine deallocate_arrays
+
+    subroutine save_basis(rad_bas, ang_bas, num_els, of_path, mol_ids, mol2bas)
     ! Save the basis to the output hdf5 file
-      use bp_symfuncs, only :  basis
+      use bp_symfuncs, only :  basis, mol_id
       implicit none
+      !IO VARS
       character(len=*), intent(in) :: of_path
-      integer :: num_els
-      type(basis), dimension(num_els) :: rad_bas, ang_bas
+      integer, intent(in) :: num_els
+      type(basis), dimension(num_els), intent(in) :: rad_bas, ang_bas
+      type(mol_id), dimension(num_els), intent(in) :: mol_ids
+      integer*4 :: mol2bas(2, num_els, num_geoms)
       
       ! Local variables
       integer(kind=4) :: error, i
       INTEGER(HID_T) :: dspace_id, dset_id ! Dataspace and dataset handles
+
    !
    ! Initialize FORTRAN interface.
    !
@@ -312,8 +354,54 @@ module h5_file_info
       !
           CALL h5dclose_f(dset_id , error)
           CALL h5sclose_f(dspace_id, error)
-          if (error .ne. 0) goto 1015
+          if (error .ne. 0) goto 1035
+!      !
+!      ! BAS2MOL
+!      !
+!      ! h5screate_simple_f(rank, dims, dspace_id, error)
+!         CALL h5screate_simple_f(1, b2m_dims(i), dspace_id, error)
+!         if (error .ne. 0) goto 1060
+!      !
+!      ! Create the dataset with default properties.
+!      !
+!          CALL h5dcreate_f(ofi, ofi_b2m_names(i), H5T_STD_I32LE , dspace_id, &
+!             dset_id, error)
+!          if (error .ne. 0) goto 1065
+!      !
+!      ! Write the data
+!      !
+!          CALL h5dwrite_f(dset_id, H5T_STD_I32LE, [mol_ids(i)%bas2mol(:)], &
+!              [b2m_dims(i)], error)
+!          if (error .ne. 0) goto 1070
+!      !
+!      ! Close and release resources.
+!      !
+!          CALL h5dclose_f(dset_id , error)
+!          CALL h5sclose_f(dspace_id, error)
+!          if (error .ne. 0) goto 1075
       enddo
+!  !
+!  ! Write the mol2bas data structure
+!  !
+!     CALL h5screate_simple_f(3, m2b_dims, dspace_id, error)
+!     if (error .ne. 0) goto 1040
+!  !
+!  ! Create the dataset with default properties.
+!  !
+!      CALL h5dcreate_f(ofi, 'molecule_to_basis_inds', H5T_STD_I32LE , &
+!         dspace_id, dset_id,  error)
+!      if (error .ne. 0) goto 1045
+!  !
+!  ! Write the data
+!  !
+!      CALL h5dwrite_f(dset_id, H5T_STD_I32LE, mol2bas(:,:,:), m2b_dims, error)
+!      if (error .ne. 0) goto 1050
+!  !
+!  ! Close and release resources.
+!  !
+!      CALL h5dclose_f(dset_id , error)
+!      CALL h5sclose_f(dspace_id, error)
+!      if (error .ne. 0) goto 1055
   !
   ! Close the file.
   !
@@ -339,7 +427,22 @@ module h5_file_info
      stop 'save_basis 7'
 1035 print *, "Error writing dataset"
      stop 'save_basis 8'
-
+1040 print *, "Error writing mol2bas dataset"
+     stop 'save_basis 9'
+1045 print *, "Error writing mol2bas dataset"
+     stop 'save_basis 10'
+1050 print *, "Error writing mol2bas dataset"
+     stop 'save_basis 11'
+1055 print *, "Error writing mol2bas dataset"
+     stop 'save_basis 12'
+1060 print *, "Error writing b2m dataset"
+     stop 'save_basis 13'
+1065 print *, "Error writing b2m dataset"
+     stop 'save_basis 14'
+1070 print *, "Error writing b2m dataset"
+     stop 'save_basis 15'
+1075 print *, "Error writing b2m dataset"
+     stop 'save_basis 16'
     end subroutine save_basis
 
 subroutine get_file_names(h5_path, of_path)

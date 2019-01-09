@@ -48,12 +48,12 @@ module bp_symfuncs
         real*8, dimension(:,:), allocatable :: b
     end type basis
 
-!    type mol_id
-!        ! This links the molecule with the atom basis. There is one entry for
-!        ! each atom of a given element. 0 would correspond to belonging to the
-!        ! first molecule, 1 the second, etc.
-!        integer, dimension(:), allocatable :: m
-!    end type mol_id
+    type mol_id
+        ! This links the atom basis to the molecule. There is one entry for
+        ! each atom of a given element. 0 would correspond to belonging to the
+        ! first molecule, 1 the second, etc.
+        integer*4, dimension(:), allocatable :: bas2mol
+    end type mol_id
 
     ! Timing variables
     logical :: dotime = .true.
@@ -184,7 +184,8 @@ contains
     end subroutine init_eta_zeta_lambda
 
     subroutine calculate_basis(rad_bas, ang_bas, coords, atmnms, natoms, &
-                               max_atoms, num_geoms, num_of_els)
+                               max_atoms, num_geoms, num_of_els, mol_ids, &
+                               mol2bas)
         ! The meat of the program, lets calculate the basis functions!
         implicit none
         ! I/O vars
@@ -193,8 +194,10 @@ contains
         real*8, intent(in) :: coords(3, max_atoms, num_geoms)
         integer*1, intent(in) :: atmnms(max_atoms, num_geoms)
         integer*2, intent(in) :: natoms(num_geoms)
-        type(basis), intent(inout) :: rad_bas(num_els), ang_bas(num_els)
 !TODO:  MAKE SURE THIS CORRESPONDS WITH THE ACTUAL DIMS IF TOO MUCH MONKEYING IS DONE
+        type(basis), intent(inout) :: rad_bas(num_els), ang_bas(num_els)
+        type(mol_id), intent(inout) :: mol_ids(num_els)
+        integer*4, intent(inout) :: mol2bas(2, num_els, num_geoms)
         
         ! Local vars
         ! This is the distance between the ith and jth atom for a given geometry
@@ -244,7 +247,7 @@ contains
         integer :: natm
         ! Counters to keep track of elements location in basis set throughout
         ! multiple geometries.
-        integer :: rad_s(num_els), ang_s(num_els), i_end
+        integer :: bas_s(num_els), i_end
         ! Variables for timing
         real(kind=8) :: t
         integer*8 :: now, clock_rate
@@ -252,8 +255,7 @@ contains
 
     100 format(I3,'   atomind    ',I3,'   geom')
         pi_div_Rc = pi / Rc
-        rad_s(:) = 1
-        ang_s(:) = 1
+        bas_s(:) = 1
 
      ang_bas(1)%b(:,:) = -2d0
      ang_bas(2)%b(:,:) = -3d0
@@ -424,25 +426,21 @@ calc_ang: do x=1, num_cos
         enddo calc_ang
 !$OMP   ENDDO
 !$OMP END PARALLEL
-! Copy the temporary radial basis set to our main basis
-save_rad: do i=1, num_els
-            i_end = rad_s(i) + g_num_of_els(i) - 1
-            ! print *, rad_s(i), i_end
+! Copy the temporary basis sets to our main basis
+save_basis: do i=1, num_els
+            i_end = bas_s(i) + g_num_of_els(i) - 1
 
-            rad_bas(i)%b(:,rad_s(i):i_end) = tmp_rad_bas(:radbas_length(i), &
-            :g_num_of_els(i), i)
-            rad_s(i) = i_end + 1
+            rad_bas(i)%b(:,bas_s(i):i_end) = tmp_rad_bas(:radbas_length(i), &
+                :g_num_of_els(i), i)
+            ang_bas(i)%b(:,bas_s(i):i_end) = tmp_ang_bas(:angbas_length(i), &
+                :g_num_of_els(i), i)
+            mol_ids(i)%bas2mol(bas_s(i):i_end) = g - 1
+            bas_s(i) = i_end + 1
+            !mol2bas(1:2,i,g) = [bas_s(i)-1, i_end]
 
-        enddo save_rad
 
-! Copy the temp anular basis to the real
-save_ang: do i=1, num_els
-            i_end = ang_s(i) + g_num_of_els(i) - 1
-            ang_bas(i)%b(:,ang_s(i):i_end) = tmp_ang_bas(:angbas_length(i), &
-            :g_num_of_els(i), i)
-            ang_s(i) = i_end + 1
+        enddo save_basis
 
-        enddo save_ang
 
      ! Its time for time
         if (mod(g, timing_interval) .eq. 0) then
