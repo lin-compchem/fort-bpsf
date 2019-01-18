@@ -205,7 +205,7 @@ where $R_s$ is the distance to scan, $R_{ij}$ is the distance between the $i$-th
 \begin{equation}
  	f_c(R_{ij}) = 
 	\begin{cases}
-		\frac{1}{2}\cos{(\frac{\pi R_{ij}} {R_s} + 1 )} & for R_{ij} \leq R_{c} \\
+		\frac{1}{2}\left[\cos{(\frac{\pi R_{ij}} {R_s})} + 1 \right] & for R_{ij} \leq R_{c} \\
 		0 & for R_{ij} > R_c
 
 	\end{cases}
@@ -262,19 +262,24 @@ The gradient of the distance $R_{ij}$ with respect to $i$ is the unit vector alo
 \begin{equation}
 \frac{\partial R_{ij}}{\mb{X}_{i}} = -\frac{\mathbf{X}_j-\mathbf{X}_i}{\lVert \mathbf{X}_j - \mathbf{X}_i \rVert}
 \end{equation}
+
 \begin{equation}
-\frac{d R_{ij}}{d \mb{X}_{j}} = - \frac{\partial R_{ij}}{\mb{X}_{i}}
+\frac{\partial R_{ij}}{\mb{X}_{i}} = -\frac{\mathbf{X}_j-\mathbf{X}_i}{R_{ij}}
 \end{equation}
 
-The gradient of the smoothing function with respect to a cartesian coordinate:
 \begin{equation}
-\frac{\partial f_c (R_{ij}) } { \mb{X}} = -\frac{\pi}{2 
- \mathrm{R_s}}  \sin ( \frac{\pi R_{ij}}{\mathrm{R_s}} + 1 ) \
+\frac{d R_{ij}}{d \mb{X}_{j}} = - \frac{\partial R_{ij}}{\partial\mb{X}_{i}}
+\end{equation}
+
+The gradient of the smoothing function with respect to the ${i}$-th cartesian coordinate:
+\begin{equation}
+\frac{\partial f_c (R_{ij}) } { \mb{X}_{i}} = -\frac{\pi}{2 
+ \mathrm{R_s}}  \sin ( \frac{\pi R_{ij}}{\mathrm{R_s}}) \frac{\partial R_{i,j}}{\mb{X}_{i}}
 \end{equation}
 
 The gradient of the $j$-th component of the $i$-th radial symmetry function:
 \begin{equation}
-\frac{\partial G_{i,j}^2 } { \mb{X}} e^{-\eta ( R_{ij} - \mathrm{R_s} )^2} \left[ -2 \eta ( R_{ij} - \mathrm{R_s} )  f_c (R_{ij}) \frac{d R_{ij}}{d R_{ij}} + \frac{d f_c ( R_{ij} )}{d R_{ij}} \right] 
+\frac{\partial G_{i,j}^2 } { \partial \mb{X}_i} e^{-\eta ( R_{ij} - \mathrm{R_s} )^2} \left[ -2 \eta ( R_{ij} - \mathrm{R_s} )  f_c (R_{ij}) \frac{\partial R_{ij}}{\partial  \mb{X}_i} + \frac{\partial f_c ( R_{ij} )}{\partial \mb{X}_i} \right] 
 \end{equation}
 
 The angular symmetry function terms and gradients:
