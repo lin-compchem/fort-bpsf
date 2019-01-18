@@ -35,6 +35,7 @@ module h5_file_info
     ! B2m dims is just vector with num of els in all geoms as the value
     ! m2b dims is the dimensions for mol2bas
     integer(kind=8), allocatable :: ang_dims(:,:), rad_dims(:,:), b2m_dims(:)
+    integer(kind=8) :: radg_dims(3,FInum_els), angg_dims(3,FInum_els)
     integer(kind=8) :: m2b_dims(3)
  
     ! These are the names in the hdf5 file
@@ -45,7 +46,7 @@ module h5_file_info
     character(len=18), dimension(2), parameter :: ofi_rad_names = ["h_radial_sym_funcs", "o_radial_sym_funcs"]
     character(len=19), dimension(2), parameter :: ofi_ang_names = ["h_angular_sym_funcs", "o_angular_sym_funcs"]
     character(len=19), dimension(2), parameter :: ofi_b2m_names = ["h_basis_to_molecule", "o_basis_to_molecule"]
- 
+    character(len=24), dimension(2), parameter :: ofi_rgrad_names = ["h_rad_cartesian_gradient", "o_rad_cartesian_gradient"]
     ! These are the handles for the input datasets
     integer(HID_T) atmnm_in, coord_in, natom_in
     integer(HID_T) atomnm_out, coord_out, natom_out
@@ -247,9 +248,13 @@ module h5_file_info
        do i=1, FInum_els
           call get_num_of_els(els(i), atmnms, Finum_of_els(i))
           rad_dims(:, i) = [radbas_length(i), Finum_of_els(i)]
+          radg_dims(:, i) = [3, radbas_length(i), Finum_of_els(i)]
           allocate(rad_bas(i)%b(rad_dims(1,i), rad_dims(2,i)))
+          allocate(rad_bas(i)%g(radg_dims(1,i), radg_dims(2,i), radg_dims(3,i)))
           ang_dims(:,i) = [angbas_length(i), Finum_of_els(i)]
+          angg_dims(:,i) = [3, angbas_length(i), Finum_of_els(i)]
           allocate(ang_bas(i)%b(ang_dims(1,i), ang_dims(2,i)))
+          allocate(ang_bas(i)%g(angg_dims(1,i), angg_dims(2,i), angg_dims(3,i)))
           allocate(mol_ids(i)%bas2mol(Finum_of_els(i)))
        enddo
        b2m_dims(:) = Finum_of_els(:)
@@ -324,6 +329,29 @@ module h5_file_info
       ! Write the data
       !
           CALL h5dwrite_f(dset_id, H5T_NATIVE_double, rad_bas(i)%b(:,:), rad_dims(:,i), error)
+          if (error .ne. 0) goto 1010
+      !
+      ! Close and release resources.
+      !
+          CALL h5dclose_f(dset_id , error)
+          CALL h5sclose_f(dspace_id, error)
+          if (error .ne. 0) goto 1015
+      !
+      ! RADIAL Gradient
+      !
+      ! h5screate_simple_f(rank, dims, dspace_id, error)
+         CALL h5screate_simple_f(2, radg_dims(:,i), dspace_id, error)
+         if (error .ne. 0) goto 1000
+      !
+      ! Create the dataset with default properties.
+      !
+          CALL h5dcreate_f(ofi, ofi_rgrad_names(i), H5T_NATIVE_DOUBLE , dspace_id, &
+             dset_id, error)
+          if (error .ne. 0) goto 1005
+      !
+      ! Write the data
+      !
+          CALL h5dwrite_f(dset_id, H5T_NATIVE_double, rad_bas(i)%g(:,:,:), radg_dims(:,i), error)
           if (error .ne. 0) goto 1010
       !
       ! Close and release resources.

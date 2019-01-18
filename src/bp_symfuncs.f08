@@ -5,6 +5,7 @@ module bp_symfuncs
     integer, parameter :: els(2) = [1, 8]
     real(8), parameter :: pi = 4 * atan(1.0d0)
     integer, parameter :: max_bas = 150
+    logical, parameter :: calc_grad = .true.
     !TODO: Check for good value for max_bas
 
     ! General Variables
@@ -46,6 +47,8 @@ module bp_symfuncs
         ! The basis functions. First dimension corresponds to atom, second dim
         ! is the basis value
         real*8, dimension(:,:), allocatable :: b
+        ! The gradient of the basis
+        real*8, dimension(:,:,:), allocatable :: g
     end type basis
 
     type mol_id
@@ -201,7 +204,8 @@ contains
         
         ! Local vars
         ! This is the distance between the ith and jth atom for a given geometry
-        real*8 :: rij(max_atoms, max_atoms) 
+        real*8, dimension(max_atoms, max_atoms) :: rij
+        real*8, dimension(3, max_atoms, max_atoms) :: drijdx
         ! assorted counters
         integer :: i, j, k, l, m, g, x, e, a, b, c, me, my_type, b_ind, &
                    i_btype, j_btype, ut
@@ -213,10 +217,11 @@ contains
         ! a, b, c, e : counters used to shorten expressions
         ! mytype: my type of angle, analogous to the btype
         !
-        ! 2norm function from blas lib
-!        real*8 :: dnrm2
+        !
         ! Smoothing function array. fc(i,j) = fc(j,i) uses cosine func.
-        real*8 :: fc(max_atoms, max_atoms)
+        !  dfcdr == dfc(rij)/dRij
+        real*8, dimension(max_atoms, max_atoms) :: fc
+        real*8, dimension(3, max_atoms, max_atoms) :: dfcdx
         ! Intermediary variables for calculating angular basis functions
         real*8 :: mycos, myexp, myfc, myang(num_etzetlam)
         ! mycos: cos(theta)
@@ -226,6 +231,7 @@ contains
 
         !Basis sets to be reduced in openmp loops
         real*8, dimension(max_bas, max_atoms, num_els) :: tmp_rad_bas, tmp_ang_bas
+        real*8, dimension(3, max_bas, max_atoms, num_els) :: tmp_rad_grad, tmp_ang_grad
 
         ! You can look up an atom index and you will get 1 for H, 2 for O
         integer :: el_key(max_atoms)
@@ -243,7 +249,7 @@ contains
         ! Number of triplets
         integer :: num_cos
         ! Holds the radial basis during vectorized computation.
-        real :: tmp_rad(max_etas)
+        real :: tmp_rad(max_etas), tmp_drad(3, max_etas, 2), term
         integer :: natm
         ! Counters to keep track of elements location in basis set throughout
         ! multiple geometries.
@@ -257,8 +263,18 @@ contains
         pi_div_Rc = pi / Rc
         bas_s(:) = 1
 
-     ang_bas(1)%b(:,:) = -2d0
-     ang_bas(2)%b(:,:) = -3d0
+        !!!! Consider COMMENT OUT TO SAVE TIME LATER
+        rad_bas(1)%g(:,:,:) = -4d0
+        rad_bas(2)%g(:,:,:) = -5d0
+        ang_bas(1)%b(:,:) = -2d0
+        ang_bas(2)%b(:,:) = -3d0
+        ang_bas(1)%g(:,:,:) = -6d0
+        ang_bas(2)%g(:,:,:) = -7d0
+
+        ! set the diagonals of some arrays to 0
+        do i=1, max_atoms
+            drijdx(1:3,i,i) = 0d0
+        enddo
 
         ! Calculate the vectors and rijs
         call tick(begin_time)
@@ -293,29 +309,35 @@ contains
 
          ! generate the cosine inds. This is an array of all of the unique
          ! angles in the system.
+         !
+         ! this has been rewritten as a subroutine but I am unsure of timing
+         !
+
+
         num_cos = 0
 find_cos: do i=1, natm
-            do j = 1, natm - 1
-                do k=j+1, natm
-                    if (i .eq. j) then
-                        goto 200
-                    elseif ( i .eq. k) then
-                        goto 300
-                    elseif (j .eq. k) then
-                        goto 300
-                    endif
-                    num_cos = num_cos + 1
-                    cos_inds(:,num_cos) = [i, j, k]
-            300 continue
+            if ( i .ne. j) then
+                do j = 1, natm - 1
+                    do k=j+1, natm
+                        if ( i .eq. k) then
+                            continue
+                        elseif (j .eq. k) then
+                            continue
+                        else
+                            num_cos = num_cos + 1
+                            cos_inds(:,num_cos) = [i, j, k]
+                        endif
+                    enddo
                 enddo
-        200 continue
-            enddo
+            else
+                continue
+            endif
         enddo find_cos
 
    !$OMP PARALLEL private(x, i, j, k, i_btype, j_btype,  tmp_rad,a,b,c,e) &
    !$OMP& private(my_type, mycos, myexp, myfc, myang) &
-   !$OMP& reduction(+:tmp_rad_bas) &
-   !$OMP& reduction(+:tmp_ang_bas)
+   !$OMP& reduction(+:tmp_rad_bas) reduction(+:tmp_rad_grad) &
+   !$OMP& reduction(+:tmp_ang_bas) reduction(+:tmp_ang_grad)
    !$OMP    DO
            ! Calculate the r-ij vectors and distances and cutoff
 
@@ -330,17 +352,31 @@ calc_bonds: do x=0, ut - 1
             j = j + 1
 
             ! Distances
-            rij(i, j) = norm2(coords(:, j, g) - coords(:, i, g))
-            ! For Cos(theta) calculations
+            drijdx(:, i, j) = coords(:, j, g) - coords(:, i, g)
+            rij(i, j) = norm2(drijdx(:, i, j))
+            drijdx(:, i, j) = drijdx(:, i, j) / rij(i, j)
+
+            ! Calculate the other diagonal
             rij(j, i) = rij(i, j)
+            drijdx(:, j, i) = -drijdx(:, i, j)
+
+            !calculate the drij/dxi matrix
+
 
             ! Cutoff
             if (rij(i, j) .lt. Rc) then
                 fc(i, j) = 0.5 * ( cos(pi_div_Rc * rij(i, j)) + 1)
+                term = 0.5 * pi_div_Rc * sin(pi_div_RC * rij(i,j))
+                dfcdx(:, j, i) = term * drijdx(:, j, i)
+                dfcdx(:, i, j) = term * drijdx(:, i, j)
             else
-                fc(i, j) = 0
+                fc(i, j) = 0d0
+                dfcdx(:, i, j) = 0d0
+                dfcdx(:, j, i) = 0d0
             endif
+
             fc(j, i) = fc(i, j)
+            dfcdx(:, j, i) = dfcdx(:, i, j)
 
 
             ! Find the bond type for the pair
@@ -361,14 +397,36 @@ calc_bonds: do x=0, ut - 1
 
             !Below should be changed if the etas change significantly as it
             !Assumes the etas are the same for all elements to save time
+            ! This cannot be reordered because we use intermediary calculation
+            ! Results for the variables
             tmp_rad(:) = exp(-1 * eta(:,1,1) * (rij(i,j) - rs(:,1,1))**2)
+
+            ! The derivative calculation
+            do k=1, 2
+             do l=1, 3
+                tmp_drad(l,:,k) = -2 * eta(:,1,1) * (rij(i,j) - rs(:,1,1)) * fc(i, j)
+             enddo
+            enddo
+            do k=1, max_etas
+                tmp_drad(:,k,1) = tmp_drad(:,k,1) * drijdx(:, i, j) + dfcdx(:, i, j)
+                tmp_drad(:,k,2) = tmp_drad(:,k,2) * drijdx(:, j, i) + dfcdx(:, j, i)
+            enddo
+            do k=1, 2
+             do l=1, 3
+                tmp_drad(l,:,k) = tmp_drad(l,:,k) * tmp_rad(:)
+             enddo
+            enddo
+
             tmp_rad(:) = tmp_rad(:) * fc(i,j)
+
+
             if (i_btype > 0) then
                 a = rad_b_ind(i_btype, el_key(i))
                 b = a + rad_size(i_btype, el_key(i)) - 1
                 c = atom_basis_index(i)
                 e = el_key(i)
                 tmp_rad_bas(a:b, c, e) =  tmp_rad_bas(a:b, c, e) + tmp_rad(:)
+                tmp_rad_grad(:,a:b, c, e) = tmp_rad_grad(:, a:b, c, e) + tmp_drad(:, :, 1)
             endif
             if (j_btype > 0) then
                 a = rad_b_ind(j_btype, el_key(j))
@@ -376,6 +434,7 @@ calc_bonds: do x=0, ut - 1
                 c = atom_basis_index(j)
                 e = el_key(j)
                 tmp_rad_bas(a:b, c, e) =  tmp_rad_bas(a:b, c, e) + tmp_rad(:)
+                tmp_rad_grad(:,a:b, c, e) = tmp_rad_grad(:, a:b, c, e) + tmp_drad(:, :, 2)
             endif
             enddo calc_bonds
     !$OMP ENDDO
@@ -458,6 +517,49 @@ save_basis: do i=1, num_els
 9000 print *, i, j, g
     stop 'final_exit'
     end subroutine calculate_basis
+
+subroutine get_triplets(max_ind, max_trip, triplets, num_triplets)
+!
+! NOT WORKING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! DONT USE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+! Get the number of unique triplets from 1 to max_ind. Return the triplets in
+! the triplets variable and return the number of triplets in the num_triplets
+! variable.
+!
+    implicit none
+    ! I/O variables
+    integer, intent(in) :: max_ind
+    integer, intent(in) :: max_trip
+    integer, intent(out) :: triplets(3, max_trip)
+    integer, intent(out) :: num_triplets
+    ! local variables
+    integer :: i, j, k
+
+    num_triplets = 0
+    do i=1, max_ind
+        if ( i .ne. j) then
+            do j = 1, max_ind - 1
+                do k=j+1, max_ind
+                    if ( i .eq. k) then
+                        continue
+                    elseif (j .eq. k) then
+                        continue
+                    else
+                        num_triplets = num_triplets + 1
+                        triplets(:,num_triplets) = [i, j, k]
+                    endif
+                enddo
+            enddo
+        else
+            continue
+        endif
+    enddo
+    if (num_triplets .gt. max_trip) then
+        stop 'get_triplets 1, exceeded array boundaries'
+    endif
+
+end subroutine get_triplets
 
 subroutine tick(t)
     integer*8, intent(OUT) :: t
