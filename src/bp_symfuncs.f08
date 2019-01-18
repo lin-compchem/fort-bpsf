@@ -336,6 +336,7 @@ find_cos: do i=1, natm
 
    !$OMP PARALLEL private(x, i, j, k, i_btype, j_btype,  tmp_rad,a,b,c,e) &
    !$OMP& private(my_type, mycos, myexp, myfc, myang) &
+   !$OMP& private(term, tmp_drad) &
    !$OMP& reduction(+:tmp_rad_bas) reduction(+:tmp_rad_grad) &
    !$OMP& reduction(+:tmp_ang_bas) reduction(+:tmp_ang_grad)
    !$OMP    DO
@@ -491,6 +492,8 @@ save_basis: do i=1, num_els
 
             rad_bas(i)%b(:,bas_s(i):i_end) = tmp_rad_bas(:radbas_length(i), &
                 :g_num_of_els(i), i)
+            rad_bas(i)%g(:,:,bas_s(i):i_end) = tmp_rad_grad(:, &
+                :radbas_length(i), :g_num_of_els(i), i)
             ang_bas(i)%b(:,bas_s(i):i_end) = tmp_ang_bas(:angbas_length(i), &
                 :g_num_of_els(i), i)
             mol_ids(i)%bas2mol(bas_s(i):i_end) = g - 1

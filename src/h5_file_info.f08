@@ -340,7 +340,7 @@ module h5_file_info
       ! RADIAL Gradient
       !
       ! h5screate_simple_f(rank, dims, dspace_id, error)
-         CALL h5screate_simple_f(2, radg_dims(:,i), dspace_id, error)
+         CALL h5screate_simple_f(3, radg_dims(:,i), dspace_id, error)
          if (error .ne. 0) goto 1000
       !
       ! Create the dataset with default properties.
