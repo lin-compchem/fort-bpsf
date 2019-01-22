@@ -223,7 +223,8 @@ contains
         real*8, dimension(max_atoms, max_atoms) :: fc
         real*8, dimension(3, max_atoms, max_atoms) :: dfcdx
         ! Intermediary variables for calculating angular basis functions
-        real*8 :: mycos, myexp, myfc, myang(num_etzetlam)
+        real*8 :: mycos, myexp, myfc, myang(num_etzetlam), mydcos(3,3)
+        ! real*8 :: mydfc(3,3), mydgauss(3,3), mydzeta(3,3)
         ! mycos: cos(theta)
         ! myexp: sum of squared dists
         ! myfc:  product of smoothing functions
@@ -272,19 +273,19 @@ contains
         ang_bas(2)%g(:,:,:) = -7d0
 
         ! set the diagonals of some arrays to 0
-        do i=1, max_atoms
-            drijdx(1:3,i,i) = 0d0
-        enddo
+        drijdx(:,:,:) = 0d0
 
         ! Calculate the vectors and rijs
         call tick(begin_time)
         call tick(begin_loop)
     over_geoms: do g=1, num_geoms
         natm = natoms(g)
+
         ! Calculate the atom numbers and indicies
         g_num_of_els(:) = 0
         tmp_rad_bas(:, :, :) = 0
         tmp_ang_bas(:, :, :) = 0
+        tmp_rad_grad(:,:,:,:) = 0
         ! Calculate the number of upper triangle indices
         ut = natm*(natm-1)/2
         ! Go throgh the atoms in the geometry and find out what element each
@@ -314,25 +315,44 @@ contains
          !
 
 
+!        num_cos = 0
+!find_cos: do i=1, natm
+!            if ( i .ne. j) then
+!                do j = 1, natm - 1
+!                    do k=j+1, natm
+!                        if ( i .eq. k) then
+!                            continue
+!                        elseif (j .eq. k) then
+!                            continue
+!                        else
+!                            num_cos = num_cos + 1
+!                            cos_inds(:,num_cos) = [i, j, k]
+!                        endif
+!                    enddo
+!                enddo
+!            else
+!                continue
+!            endif
+!        enddo find_cos
         num_cos = 0
 find_cos: do i=1, natm
-            if ( i .ne. j) then
-                do j = 1, natm - 1
-                    do k=j+1, natm
-                        if ( i .eq. k) then
-                            continue
-                        elseif (j .eq. k) then
-                            continue
-                        else
-                            num_cos = num_cos + 1
-                            cos_inds(:,num_cos) = [i, j, k]
-                        endif
-                    enddo
+            do j = 1, natm - 1
+                do k=j+1, natm
+                    if (i .eq. j) then
+                        goto 200
+                    elseif ( i .eq. k) then
+                        goto 300
+                    elseif (j .eq. k) then
+                        goto 300
+                    endif
+                    num_cos = num_cos + 1
+                    cos_inds(:,num_cos) = [i, j, k]
+            300 continue
                 enddo
-            else
-                continue
-            endif
+        200 continue
+            enddo
         enddo find_cos
+
 
    !$OMP PARALLEL private(x, i, j, k, i_btype, j_btype,  tmp_rad,a,b,c,e) &
    !$OMP& private(my_type, mycos, myexp, myfc, myang) &
@@ -367,7 +387,7 @@ calc_bonds: do x=0, ut - 1
             ! Cutoff
             if (rij(i, j) .lt. Rc) then
                 fc(i, j) = 0.5 * ( cos(pi_div_Rc * rij(i, j)) + 1)
-                term = 0.5 * pi_div_Rc * sin(pi_div_RC * rij(i,j))
+                term = -0.5 * pi_div_Rc * sin(pi_div_RC * rij(i,j))
                 dfcdx(:, j, i) = term * drijdx(:, j, i)
                 dfcdx(:, i, j) = term * drijdx(:, i, j)
             else
@@ -375,10 +395,6 @@ calc_bonds: do x=0, ut - 1
                 dfcdx(:, i, j) = 0d0
                 dfcdx(:, j, i) = 0d0
             endif
-
-            fc(j, i) = fc(i, j)
-            dfcdx(:, j, i) = dfcdx(:, i, j)
-
 
             ! Find the bond type for the pair
             i_btype = 0
@@ -467,9 +483,21 @@ calc_ang: do x=1, num_cos
             !mycos = mycos / (rij(i, j) * rij(i, k))
             mycos = (rij(i,j)**2 + rij(i,k)**2 - rij(j,k)**2) / &
                     (2.0 * rij(i,j) * rij(i,k))
+            ! Derivative of cos with respect to j, k. 2 is j, 3 is k
+            term = 1/(r(i,j) * r(i,k))
+            mydcos(:,2) = -mycos / rij(i,j) * drijdx(:,j,i)
+            mydcos(:,2) = mydcos(:,2) + term * (drijdx(:,j,i) - drijdx(:,j,k))
+            mydcos(:,3) = -mycos / rij(i,k) * drijdx(:,k,i)
+            mydcos(:,3) = mydcos(:,3) + term * (drijdx(:,k,i) - drijdx(:,k,j))
+            ! Derivative of cos with respect to i
+            mydcos(:,1) = -mycos * (rij(i,k) * drijdx(i,j) + rij(i,j)*drijdx(i,k))
+            mydcos(:,1) = term * (mydcos(:,1) + 2*coords(:,i,g) - coords(:,j,g) - coords(:,k,g))
+
+
             ! the myexp term is written with 2 different expressions. this is
             ! from the 2018 paper
             myexp = (rij(i, j) + rij(i, k) + rij(j, k))**2
+
             myfc = fc(i, j) * fc(i, k) * fc(j, k)
 
             myang(:) = 2 ** (1 - etzetlam(:,2))

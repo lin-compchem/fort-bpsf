@@ -308,6 +308,7 @@ module h5_file_info
    ! Open a new file.
    !
       call h5fcreate_f(of_path, H5F_ACC_TRUNC_F, ofi, error)
+      if (error .ne. 0)  goto 2000
    !
    ! Write the datasets.
    !
@@ -470,6 +471,8 @@ module h5_file_info
      stop 'save_basis 15'
 1075 print *, "Error writing b2m dataset"
      stop 'save_basis 16'
+2000 print *, "error opening output file: ", of_path
+     stop 'save_basis 17'
     end subroutine save_basis
 
 subroutine get_file_names(h5_path, of_path)

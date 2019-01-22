@@ -10,12 +10,6 @@ __email__ = 'adam.duster@ucdenver.edu'
 __status__ = 'Development'
 
 import argparse
-import h5py as h5
-import numpy as np
-import os
-import shutil
-import subprocess
-
 def get_args(args=None):
     """ This is written as a default funtion to put at beginning of all Python
     scripts which require command line arguments. This uses the argparse module
@@ -27,21 +21,8 @@ def get_args(args=None):
     parser.add_argument(
         '-i',
         '--input',
-        help='Input h5py file',
+        help='Input file name',
         required=True)
-    parser.add_argument(
-        '-o',
-        '--output',
-        help='Output h5py file',
-        required=True)
-    parser.add_argument(
-        '-s',
-        '--step',
-        help='The change in coordinates between the two files',
-        required=False,
-        default=1e-6,
-        type=float
-    )    
     parser.add_argument(
         '-v',
         '--verbose',
@@ -61,18 +42,8 @@ def get_args(args=None):
 ## Vars
 arg_vals = None
 args = get_args(arg_vals)
-print("This script makes a perturbed coordinate file")
-print("It adds %e to each cartesian coordinate" % args.step)
-print("The following output is the original and perturbed coordinate for the" \
-        "first atom")
-#
-# Make the perturbed coordinate file
-#
-key = 'cartesian_coords'
-shutil.copyfile(args.input, args.output)
-with h5.File(args.output, 'r+') as ofi:
-    data = ofi[key]
-    data[0,0,:] = ofi[key][0,0,:] + args.step
-    ofi.close()
-with h5.File(args.output, 'r') as ofi, h5.File(args.input, 'r') as ifi:
-    print(ifi[key][0,:2,:], ofi[key][0,:2,:])
+
+ifpath = args.input
+verbose = args.verbose
+debug = args.debug
+

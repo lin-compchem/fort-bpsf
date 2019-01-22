@@ -8,6 +8,7 @@ rfi=../../test_files/reference.h5
 bin=../../bin/gen_symfuncs_debug
 cwd=`pwd`
 cd ../../src
+make clean
 make debug
 cd $cwd 
 $bin $ifi $ofi 

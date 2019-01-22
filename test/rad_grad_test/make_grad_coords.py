@@ -27,21 +27,29 @@ def get_args(args=None):
     parser.add_argument(
         '-i',
         '--input',
-        help='Input h5py file',
+        help='Input xyz file',
         required=True)
     parser.add_argument(
         '-o',
         '--output',
-        help='Output h5py file',
+        help='Output xyz file',
         required=True)
     parser.add_argument(
         '-s',
         '--step',
-        help='The change in coordinates between the two files',
+        help='The change in theta between the two files',
         required=False,
-        default=1e-6,
+        default=np.pi/100000,
         type=float
-    )    
+    )
+    parser.add_argument(
+        '-t',
+        '--theta',
+        help='The initial theta for the first geometry',
+        required=False,
+        default=np.pi/2,
+        type=float
+    )
     parser.add_argument(
         '-v',
         '--verbose',
@@ -58,21 +66,31 @@ def get_args(args=None):
         default=False)
     return parser.parse_args(args)
 
+def write_coords(c, fpath):
+    s = "\n{0:1s}      {1:12.10f}      {2:12.10f}       {3:12.10f}"
+    with open(fpath, 'w') as ofi:
+        ofi.write('3\n')
+        ofi.write(s.format('O',0.,0.,0.))
+        ofi.write(s.format('H',1.,0.,0.))
+        ofi.write(s.format('H',c[0],c[1],0.0))
+    return
 ## Vars
 arg_vals = None
 args = get_args(arg_vals)
 print("This script makes a perturbed coordinate file")
-print("It adds %e to each cartesian coordinate" % args.step)
-print("The following output is the original and perturbed coordinate for the" \
-        "first atom")
+print("It adds %e to the angle of betweeen the 3-1-2 angle" % args.step)
+print("The chosen theta is %e and the chosen step is %e" % (args.theta, args.step))
 #
-# Make the perturbed coordinate file
+# Calculate the original coordinates
 #
-key = 'cartesian_coords'
-shutil.copyfile(args.input, args.output)
-with h5.File(args.output, 'r+') as ofi:
-    data = ofi[key]
-    data[0,0,:] = ofi[key][0,0,:] + args.step
-    ofi.close()
-with h5.File(args.output, 'r') as ofi, h5.File(args.input, 'r') as ifi:
-    print(ifi[key][0,:2,:], ofi[key][0,:2,:])
+c = np.asarray([0.,0.])
+c[0] = np.cos(args.theta)
+c[1] = np.sin(args.theta)
+write_coords(c, args.input)
+#
+# We use polar coordinates here to output the new x,y,z
+#
+new_theta = args.theta + args.step
+c[0] = np.cos(new_theta)
+c[1] = np.sin(new_theta)
+write_coords(c, args.output)

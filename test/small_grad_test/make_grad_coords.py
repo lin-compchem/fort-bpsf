@@ -72,7 +72,7 @@ key = 'cartesian_coords'
 shutil.copyfile(args.input, args.output)
 with h5.File(args.output, 'r+') as ofi:
     data = ofi[key]
-    data[0,0,:] = ofi[key][0,0,:] + args.step
+    data[0,0,0] = ofi[key][0,0,0] + args.step
     ofi.close()
 with h5.File(args.output, 'r') as ofi, h5.File(args.input, 'r') as ifi:
     print(ifi[key][0,:2,:], ofi[key][0,:2,:])

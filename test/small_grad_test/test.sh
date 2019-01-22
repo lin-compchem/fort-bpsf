@@ -2,7 +2,7 @@
 #
 # Run the executable!
 #
-ifi=../../test_files/2_water_clusters.h5
+ifi="./h5/oh-cartgeom.h5"
 ifirst="./step1_coords.h5"
 ofirst="./step1_bf.h5"
 inext="./step2_coords.h5"
@@ -20,7 +20,7 @@ cd $cwd
 printf "\n###############\nSTEP 1\n###############\n"
 cp $ifi $ifirst
 if [ ! -e $ifirst ]; then echo "could not find $ifirst file"; exit 1; fi;
-python make_grad_coords.py -i $ifirst -o $inext -s 1e-2
+python make_grad_coords.py -i $ifirst -o $inext -s 1e-6
 if [ ! -e $inext ]; then echo "could not find the newly created coordinates at $inext file"; exit 2; fi;
 
 printf "\n###############\nSTEP 2\n###############\n"
