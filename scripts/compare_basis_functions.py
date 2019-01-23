@@ -105,7 +105,7 @@ def main():
         if (i_shape != r_shape) and (key != 'o_radial_sym_funcs') and \
         (args.test != 1):
             print("Error for key %s" % key)
-            print("Input shape {0} does not equal reference shape {1}".format(i_shape, r_shape))
+            print("Input shape {0} for key {2} does not equal reference shape {1}".format(i_shape, r_shape, key))
             continue
         big = 0
         small = 0
