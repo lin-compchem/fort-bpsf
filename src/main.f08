@@ -6,10 +6,6 @@ program save_bp_symfuncs
    use h5_file_info
 
    implicit none
-!   character(len=*), parameter :: h5_path = './test_files/behler_3b-cartgeom.h5'
-!   character(len=*), parameter :: of_path = './test_files/behler_3b-fortsym.h5'
-!   character(len=*), parameter :: h5_path = "s1000-cartgeom.h5"
-!   character(len=*), parameter :: of_path = "out.h5"
    character(len=:), allocatable :: h5_path, of_path
    real*8, allocatable :: coords(:,:,:)
    integer*1, allocatable :: atmnm(:,:)

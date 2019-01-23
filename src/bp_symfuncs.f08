@@ -47,8 +47,10 @@ module bp_symfuncs
         ! The basis functions. First dimension corresponds to atom, second dim
         ! is the basis value
         real*8, dimension(:,:), allocatable :: b
-        ! The gradient of the basis
-        real*8, dimension(:,:,:), allocatable :: g
+        ! The gradient of the basis in BxExNx3 dimensions. The first is the
+        ! number of basis funcitons for a given atom, the second has N dimensions
+        ! where N is the maxbas parameter and holds the atoms for a. The thirs
+        real*8, dimension(:,:,:,:), allocatable :: g
     end type basis
 
     type mol_id
@@ -224,7 +226,8 @@ contains
         real*8, dimension(3, max_atoms, max_atoms) :: dfcdx
         ! Intermediary variables for calculating angular basis functions
         real*8 :: mycos, myexp, myfc, myang(num_etzetlam), mydcos(3,3)
-        ! real*8 :: mydfc(3,3), mydgauss(3,3), mydzeta(3,3)
+        real*8 :: mya(num_etzetlam), myb(num_etzetlam), myc(num_etzetlam), ang_coeff(num_etzetlam)
+        real*8 :: mydfc(3,3), mydexp(3,3), mydzeta(3,3)
         ! mycos: cos(theta)
         ! myexp: sum of squared dists
         ! myfc:  product of smoothing functions
@@ -232,7 +235,7 @@ contains
 
         !Basis sets to be reduced in openmp loops
         real*8, dimension(max_bas, max_atoms, num_els) :: tmp_rad_bas, tmp_ang_bas
-        real*8, dimension(3, max_bas, max_atoms, num_els) :: tmp_rad_grad, tmp_ang_grad
+        real*8, dimension(3, max_atoms, max_bas, max_atoms, num_els) :: tmp_rad_grad, tmp_ang_grad
 
         ! You can look up an atom index and you will get 1 for H, 2 for O
         integer :: el_key(max_atoms)
@@ -250,7 +253,7 @@ contains
         ! Number of triplets
         integer :: num_cos
         ! Holds the radial basis during vectorized computation.
-        real :: tmp_rad(max_etas), tmp_drad(3, max_etas, 2), term
+        real :: tmp_rad(max_etas), tmp_drad(3, max_etas, 2), term, tmp_dang(3, num_etzetlam, 3)
         integer :: natm
         ! Counters to keep track of elements location in basis set throughout
         ! multiple geometries.
@@ -265,12 +268,15 @@ contains
         bas_s(:) = 1
 
         !!!! Consider COMMENT OUT TO SAVE TIME LATER
-        rad_bas(1)%g(:,:,:) = -4d0
-        rad_bas(2)%g(:,:,:) = -5d0
+        rad_bas(1)%g(:,:,:,:) = -4d0
+        rad_bas(2)%g(:,:,:,:) = -5d0
         ang_bas(1)%b(:,:) = -2d0
         ang_bas(2)%b(:,:) = -3d0
-        ang_bas(1)%g(:,:,:) = -6d0
-        ang_bas(2)%g(:,:,:) = -7d0
+        ang_bas(1)%g(:,:,:,:) = -6d0
+        ang_bas(2)%g(:,:,:,:) = -7d0
+
+        !!! This should be the same between calculations
+        ang_coeff(:) = 2 ** (1 - etzetlam(:,2))
 
         ! set the diagonals of some arrays to 0
         drijdx(:,:,:) = 0d0
@@ -280,12 +286,12 @@ contains
         call tick(begin_loop)
     over_geoms: do g=1, num_geoms
         natm = natoms(g)
-
         ! Calculate the atom numbers and indicies
         g_num_of_els(:) = 0
         tmp_rad_bas(:, :, :) = 0
         tmp_ang_bas(:, :, :) = 0
-        tmp_rad_grad(:,:,:,:) = 0
+        tmp_rad_grad(:,:,:,:,:) = 0
+        tmp_ang_grad(:,:,:,:,:) = 0
         ! Calculate the number of upper triangle indices
         ut = natm*(natm-1)/2
         ! Go throgh the atoms in the geometry and find out what element each
@@ -353,7 +359,6 @@ find_cos: do i=1, natm
             enddo
         enddo find_cos
 
-
    !$OMP PARALLEL private(x, i, j, k, i_btype, j_btype,  tmp_rad,a,b,c,e) &
    !$OMP& private(my_type, mycos, myexp, myfc, myang) &
    !$OMP& private(term, tmp_drad) &
@@ -395,7 +400,7 @@ calc_bonds: do x=0, ut - 1
                 dfcdx(:, i, j) = 0d0
                 dfcdx(:, j, i) = 0d0
             endif
-
+            fc(j, i) = fc(i, j)
             ! Find the bond type for the pair
             i_btype = 0
             j_btype = 0
@@ -443,19 +448,28 @@ calc_bonds: do x=0, ut - 1
                 c = atom_basis_index(i)
                 e = el_key(i)
                 tmp_rad_bas(a:b, c, e) =  tmp_rad_bas(a:b, c, e) + tmp_rad(:)
-                tmp_rad_grad(:,a:b, c, e) = tmp_rad_grad(:, a:b, c, e) + tmp_drad(:, :, 1)
+                tmp_rad_grad(:, i, a:b, c, e) = tmp_rad_grad(:, i, a:b, c, e) + tmp_drad(:, :, 1)
+                tmp_rad_grad(:, j, a:b, c, e) = tmp_rad_grad(:, j, a:b, c, e) + tmp_drad(:, :, 2)
             endif
+            !
+            ! Here i am adding the mirror RBF and corresponding gradients. Note that
+            ! The assumption is that there is a corresponding basis function between H and O
+            ! and that the gradient of that basis function is antisymmetric with it's
+            ! corresponding gradient.
+            !
             if (j_btype > 0) then
                 a = rad_b_ind(j_btype, el_key(j))
                 b = a + rad_size(j_btype, el_key(j)) - 1
                 c = atom_basis_index(j)
                 e = el_key(j)
                 tmp_rad_bas(a:b, c, e) =  tmp_rad_bas(a:b, c, e) + tmp_rad(:)
-                tmp_rad_grad(:,a:b, c, e) = tmp_rad_grad(:, a:b, c, e) + tmp_drad(:, :, 2)
+                tmp_rad_grad(:, i, a:b, c, e) = tmp_rad_grad(:, i, a:b, c, e) - tmp_drad(:, :, 1)
+                tmp_rad_grad(:, j, a:b, c, e) = tmp_rad_grad(:, j, a:b, c, e) - tmp_drad(:, :, 2)
             endif
             enddo calc_bonds
     !$OMP ENDDO
     !$OMP DO
+
 calc_ang: do x=1, num_cos
             i = cos_inds(1, x)
             j = cos_inds(2, x)
@@ -477,6 +491,9 @@ calc_ang: do x=1, num_cos
             if (my_type .eq. 0) cycle
 
             ! Calculate the cosine term
+            !
+            ! Here, the
+            !
             !mycos = dot_product(3, vecs(:, i, j), 1, vecs(:, i, k), 1)
             !print *, vecs(:, i, j), vecs(:, i, k)
             !mycos = dot_product(vecs(:,i,j), vecs(:,i,k))
@@ -484,32 +501,66 @@ calc_ang: do x=1, num_cos
             mycos = (rij(i,j)**2 + rij(i,k)**2 - rij(j,k)**2) / &
                     (2.0 * rij(i,j) * rij(i,k))
             ! Derivative of cos with respect to j, k. 2 is j, 3 is k
-            term = 1/(r(i,j) * r(i,k))
+            term = 1/(rij(i,j) * rij(i,k))
             mydcos(:,2) = -mycos / rij(i,j) * drijdx(:,j,i)
             mydcos(:,2) = mydcos(:,2) + term * (drijdx(:,j,i) - drijdx(:,j,k))
             mydcos(:,3) = -mycos / rij(i,k) * drijdx(:,k,i)
             mydcos(:,3) = mydcos(:,3) + term * (drijdx(:,k,i) - drijdx(:,k,j))
+
             ! Derivative of cos with respect to i
-            mydcos(:,1) = -mycos * (rij(i,k) * drijdx(i,j) + rij(i,j)*drijdx(i,k))
+            mydcos(:,1) = -mycos * (rij(i,k) * drijdx(:,i,j) + rij(i,j)*drijdx(:,i,k))
             mydcos(:,1) = term * (mydcos(:,1) + 2*coords(:,i,g) - coords(:,j,g) - coords(:,k,g))
 
+            ! Derivatives of fc(ij)*fc(ik)*fc(jk)
+            mydfc(:,1) = fc(j,k)*( fc(i,j)*dfcdx(:,i,k) + fc(i,k)*dfcdx(:,i,j) )
+            mydfc(:,2) = fc(i,k)*( fc(i,j)*dfcdx(:,j,k) + fc(j,k)*dfcdx(:,j,i) )
+            mydfc(:,3) = fc(i,j)*( fc(i,k)*dfcdx(:,k,j) + fc(j,k)*dfcdx(:,k,i) )
 
             ! the myexp term is written with 2 different expressions. this is
             ! from the 2018 paper
             myexp = (rij(i, j) + rij(i, k) + rij(j, k))**2
-
             myfc = fc(i, j) * fc(i, k) * fc(j, k)
 
-            myang(:) = 2 ** (1 - etzetlam(:,2))
-            myang(:) = myang(:) * ( 1 + etzetlam(:,3) * mycos) ** etzetlam(:,2)
-            myang(:) = myang(:) * exp(-1 * etzetlam(:,1) * myexp) * myfc
+            ! Begin
+            ! The gaussian parts that don't depend on eta
+            mydexp(:,1) = drijdx(:,i,j) + drijdx(:,i,k)
+            mydexp(:,2) = drijdx(:,j,i) + drijdx(:,j,k)
+            mydexp(:,3) = drijdx(:,k,i) + drijdx(:,k,j)
 
+            !
+            ! Myang is the calculation for the angular basis functions
+            !
+            mya(:) = ( 1 + etzetlam(:,3) * mycos) ** etzetlam(:,2)
+            myb(:) = exp(-1 * etzetlam(:,1) * myexp)
+            myang(:) = ang_coeff(:) * mya(:) * myb(:) * myfc
+            !
+            ! Before we multiply by the smoothing functions, we can take
+            ! advantage of this calculation and calculate the derivatives
+            ! with respect to fc
+            !
+
+            ! l is counter for looping over i, j, k
+            do l=1, 3
+               do m=1, num_etzetlam
+                tmp_dang(:,m,l) = mya(j) * myb(m) * mydfc(:,l)
+                tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
+                    myb(m) * -2 * etzetlam(m,1) * (rij(i,j) + rij(i,k) + rij(j,k)) * mydexp(:,l)
+                tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
+                    etzetlam(m,2) * etzetlam(m,3) * (1 + etzetlam(m,3) * mycos) ** (etzetlam(m,2) - 1) * mydcos(:,l)
+                tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m)
+               enddo
+            enddo
+            !
+            ! find the proper angular basis indicies and save the basis
+            !
             a = ang_b_ind(my_type, el_key(i))
             b = a + ang_size(my_type, el_key(i)) - 1
             c = atom_basis_index(i)
             e = el_key(i)
-
             tmp_ang_bas(a:b, c, e) = tmp_ang_bas(a:b, c, e) + myang(:)
+            !
+            ! store the gradient
+            !
 
         enddo calc_ang
 !$OMP   ENDDO
@@ -520,8 +571,8 @@ save_basis: do i=1, num_els
 
             rad_bas(i)%b(:,bas_s(i):i_end) = tmp_rad_bas(:radbas_length(i), &
                 :g_num_of_els(i), i)
-            rad_bas(i)%g(:,:,bas_s(i):i_end) = tmp_rad_grad(:, &
-                :radbas_length(i), :g_num_of_els(i), i)
+            rad_bas(i)%g(:,:,:,bas_s(i):i_end) = &
+                tmp_rad_grad(:, :, :radbas_length(i), :g_num_of_els(i), i)
             ang_bas(i)%b(:,bas_s(i):i_end) = tmp_ang_bas(:angbas_length(i), &
                 :g_num_of_els(i), i)
             mol_ids(i)%bas2mol(bas_s(i):i_end) = g - 1

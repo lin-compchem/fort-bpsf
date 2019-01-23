@@ -35,7 +35,7 @@ module h5_file_info
     ! B2m dims is just vector with num of els in all geoms as the value
     ! m2b dims is the dimensions for mol2bas
     integer(kind=8), allocatable :: ang_dims(:,:), rad_dims(:,:), b2m_dims(:)
-    integer(kind=8) :: radg_dims(3,FInum_els), angg_dims(3,FInum_els)
+    integer(kind=8) :: radg_dims(4,FInum_els), angg_dims(4,FInum_els)
     integer(kind=8) :: m2b_dims(3)
  
     ! These are the names in the hdf5 file
@@ -248,13 +248,13 @@ module h5_file_info
        do i=1, FInum_els
           call get_num_of_els(els(i), atmnms, Finum_of_els(i))
           rad_dims(:, i) = [radbas_length(i), Finum_of_els(i)]
-          radg_dims(:, i) = [3, radbas_length(i), Finum_of_els(i)]
+          radg_dims(:, i) = [3, max_atoms, radbas_length(i), Finum_of_els(i)]
           allocate(rad_bas(i)%b(rad_dims(1,i), rad_dims(2,i)))
-          allocate(rad_bas(i)%g(radg_dims(1,i), radg_dims(2,i), radg_dims(3,i)))
+          allocate(rad_bas(i)%g(radg_dims(1,i), radg_dims(2,i), radg_dims(3,i), radg_dims(4,i)))
           ang_dims(:,i) = [angbas_length(i), Finum_of_els(i)]
-          angg_dims(:,i) = [3, angbas_length(i), Finum_of_els(i)]
+          angg_dims(:,i) = [3, max_atoms, angbas_length(i), Finum_of_els(i)]
           allocate(ang_bas(i)%b(ang_dims(1,i), ang_dims(2,i)))
-          allocate(ang_bas(i)%g(angg_dims(1,i), angg_dims(2,i), angg_dims(3,i)))
+          allocate(ang_bas(i)%g(angg_dims(1,i), angg_dims(2,i), angg_dims(3,i), angg_dims(4,i)))
           allocate(mol_ids(i)%bas2mol(Finum_of_els(i)))
        enddo
        b2m_dims(:) = Finum_of_els(:)
@@ -341,7 +341,7 @@ module h5_file_info
       ! RADIAL Gradient
       !
       ! h5screate_simple_f(rank, dims, dspace_id, error)
-         CALL h5screate_simple_f(3, radg_dims(:,i), dspace_id, error)
+         CALL h5screate_simple_f(4, radg_dims(:,i), dspace_id, error)
          if (error .ne. 0) goto 1000
       !
       ! Create the dataset with default properties.
@@ -352,7 +352,7 @@ module h5_file_info
       !
       ! Write the data
       !
-          CALL h5dwrite_f(dset_id, H5T_NATIVE_double, rad_bas(i)%g(:,:,:), radg_dims(:,i), error)
+          CALL h5dwrite_f(dset_id, H5T_NATIVE_double, rad_bas(i)%g(:,:,:,:), radg_dims(:,i), error)
           if (error .ne. 0) goto 1010
       !
       ! Close and release resources.
