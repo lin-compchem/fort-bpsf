@@ -213,47 +213,28 @@ where $R_s$ is the distance to scan, $R_{ij}$ is the distance between the $i$-th
 In this expression, $R_{ij}$ is the distance between the $i$-th and the $j$-th atom nad $R_c$ is a parameter which represents the cutoff distance for the symmetry functions.The cutoff function is necessary to ensure that the basis functions do not change abruptly when atoms enter the largest distance that is to be scanned. It smoothly and monotonically decreases to 0 as $R_ij$ approaches $R_s$.
 
 The angular symmetry functions describe the angular distribution of two atom types surrounding a given atom by the following expression:
-\begin{equation}\label{eq:ang}
+\begin{equation}\label{eq:angnotused}
 	G_i^2 = 2^{1 - \zeta} \sum_{j,k \neq i}^{all} ( 1 + \lambda \cos{\theta_{ijk}}) ^\zeta e^{-\eta` ( R_{ij}^2 + R_{ik}^2 + R_{jk}^2)} f_c (R_{ij}) f_c(R_{ik}) f_c(R_{jk})
 \end{equation}
 OR:
 \begin{equation}\label{eq:ang}
 	G_i^2 = 2^{1 - \zeta} \sum_{j,k \neq i}^{all} ( 1 + \lambda \cos{\theta_{ijk}}) ^\zeta e^{-\eta` ( R_{ij} + R_{ik} + R_{jk})^2} f_c (R_{ij}) f_c(R_{ik}) f_c(R_{jk})
 \end{equation}
-Here, $\theta$ is the angle formed by the vectors from the $i$-th to the $j$-th and $i$-th to the $k$-th atoms, $\lambda$ is a parameter used to invert the  cosine function, $\eta `$ is a parameter used to control the gaussian width, and $\zeta$ increases the specificity of the basis function for the given angle.
+Here, $\theta$ is the angle formed by the vectors from the $i$-th to the $j$-th and $i$-th to the $k$-th atoms, $\lambda$ is a parameter used to invert the  cosine function, $\eta `$ is a parameter used to control the gaussian width, and $\zeta$ increases the specificity of the basis function for the given angle. While both of these equation appear in the literaure, following citation TODO from 2018, we will use equation\eqref{eq:ang}.
 
 For each atom, a predetermined number of radial and symmetry functions must be selected and the symmetry function parameters do not change throughout the course of the NN weight optimization.
  For the proton transfer through water exeperiment proposed later, the symmetry functions will be based on ref and include 24 radial Gaussian-shape filters, with $R_s$ values distributed evenly between $0.8 \mathrm{\AA}$ and $8.0 \mathrm{\AA}$.
- The width of the associated $eta$ parameter will be proportional to the center's position by the expression $1/\sqrt{2\eta} = 0.2 R_s$. The angular probe will use $\zeta = \left[ 1, 4, 16 \right]$ for the filter widths, $\lambda = \left[ -1, 1 \right]$ for switching the filter's center between 0 and $\pi$, and $\eta` = \left[ 0.001, 0.01, 0.05\right] (\mathrm{\AA}^{-2})$ for the levels of separation dependence. This will yield a feature of length 82 for H atoms, and 100 for O. Further details about the basis vectors can be found in appendix \ref{a:symfunc}
-\subsection{ Graphs and Explanation}
-As stated in the main text, a radial basis vector element is determined for the folowing expression:
-\begin{equation}\label{eq:aprad}
-	G^{1}_{i} = \sum_{j \neq i}^{all} e^{-\eta ( R_{ij} - R_{s})^2} f_{c}(R_{ij})
-\end{equation}
-with the cutoff function defined as:
-\begin{equation}
- 	f_c(R_{ij}) = 
-	\begin{cases}
-		\frac{1}{2}\cos{(\frac{\pi R_{ij}} {R_s} + 1 )} & for R_{ij} \leq R_{c} \\
-		0 & for R_{ij} > R_c
-
-	\end{cases}
-\end{equation}
-The affect of changing the parameters is shown in  \ref{fig:rad_funcs}. Note that panel D is a representation of the way the radial symmetry functions will be used in this work.
+ The width of the associated $eta$ parameter will be proportional to the center's position by the expression $1/\sqrt{2\eta} = 0.2 R_s$. The angular probe will use $\zeta = \left[ 1, 4, 16 \right]$ for the filter widths, $\lambda = \left[ -1, 1 \right]$ for switching the filter's center between 0 and $\pi$, and $\eta` = \left[ 0.001, 0.01, 0.05\right] (\mathrm{\AA}^{-2})$ for the levels of separation dependence. This will yield a feature of length 82 for H atoms, and 100 for O. The effect of changing the parameters for the radial and angular basis functions are shown in  \ref{fig:rad_funcs} and \ref{fig:ang_funcs} respectively. Note that panel D is currently how the radial symmetry functions are implemented.
 \begin{figure}
 	\includegraphics[width=\linewidth]{./img/rad_graphs.png}	\caption{Changes in radial basis function while adjusting parameters. The colored points represent the value of the symmetry function for an atom located at R $\mathrm{\AA}$ away from the given atom.}
 	\label{fig:rad_funcs}
 \end{figure}
-
-Again for convienence, the equation for an angular basis vector component is reproduced here.
-\begin{equation}\label{eq:apang}
-	G_i^2 = 2^{1 - \zeta} \sum_{j,k \neq i}^{all} ( 1 + \lambda \cos{\theta_{ijk}}) ^\zeta e^{-\eta` ( R_{ij}^2 + R_{ik}^2 + R_{jk}^2)} f_c (R_{ij}) f_c(R_{ik}) f_c(R_{jk})
-\end{equation}
-The effect of changing of changing the parameters is shown in Figure \ref{fig:ang_funcs}
+\ref{fig:ang_funcs}
 \begin{figure}
-	\includegraphics[width=\linewidth]{./img/ang_graphs.png}	\caption{Changes in angular basis function while adjusting parameters. The colored points represent the value of the symmetry function for an atom located at R $\mathrm{\AA}$ away from the given atom.}
+	\includegraphics[width=\linewidth]{./img/ang_graphs.png}	\caption{Changes in angular basis function while adjusting parameters. The colored points represent the value of the symmetry function for an atom located at R $\mathrm{\AA}$ away from the given atom. This needs to be checked to ensure that equation 4 was used}
 	\label{fig:ang_funcs}
 \end{figure}
+\newpage
 \subsection{Symmetry Function Gradient}
 The gradients of the symmetry function terms are presented here in order of increasing complexity.
 
@@ -274,43 +255,70 @@ The gradient of the distance $R_{ij}$ with respect to $i$ is the unit vector alo
 The gradient of the smoothing function with respect to the ${i}$-th cartesian coordinate:
 \begin{equation}
 \frac{\partial f_c (R_{ij}) } { \mb{X}_{i}} = -\frac{\pi}{2 
- \mathrm{R_s}}  \sin ( \frac{\pi R_{ij}}{\mathrm{R_s}}) \frac{\partial R_{i,j}}{\mb{X}_{i}}
+ \mathrm{R_s}}  \sin ( \frac{\pi R_{ij}}{\mathrm{R_s}}) \frac{\partial R_{ij}}{\mb{X}_{i}}
 \end{equation}
 
 The gradient of the $j$-th component of the $i$-th radial symmetry function:
-\begin{equation}
+\begin{equation}\label{eq:rad_derivative}
 \frac{\partial G_{i,j}^2 } { \partial \mb{X}_i} e^{-\eta ( R_{ij} - \mathrm{R_s} )^2} \left[ -2 \eta ( R_{ij} - \mathrm{R_s} )  f_c (R_{ij}) \frac{\partial R_{ij}}{\partial  \mb{X}_i} + \frac{\partial f_c ( R_{ij} )}{\partial \mb{X}_i} \right] 
 \end{equation}
 
-The angular symmetry function terms and gradients:
+\subsubsection{Angular Symmetry Functions}
+
+The angular symmetry function terms and gradients.
 
 \begin{equation}
-\frac{\partial } {\partial \mb{X}}
- e^{-\eta ` \left( R_{ij}^2 + R_{ik}^2 + R_{jk}^2 \right) } =
-  -2 \eta` R_{ij} e^{-\eta` \left( R_{ij}^2 + R_{ik}^2 + R_{jk}^2 \right) }
-\frac{d R_{ij}}{\partial \mb{X}}
+\frac{\partial } {\partial \mb{X}_i}
+ e^{-\eta ` \left( R_{ij} + R_{ik} + R_{jk} \right)^2 } =
+  -2 \eta` \left( R_{ij} + R_{ik} + R_{jk} \right) e^{-\eta` \left( R_{ij} + R_{ik} + R_{jk} \right)^2   } \left(
+\frac{d R_{ij}}{\partial \mb{X}_i} + \frac{d R_{ik}}{\partial \mb{X}_i} \right)
 \end{equation}
 
 \begin{equation}
-\frac{\partial } {\partial \mb{X}} ( 1 + \lambda \cos{\theta_{ijk}} )  = \zeta ( 1 + \lambda \cos \theta_{ijk} ) ^ {\zeta - 1} \frac{\partial \cos \theta_{ijk} } {\partial \mb{X}}
+\frac{\partial } {\partial \mb{X}_i} ( 1 + \lambda \cos{\theta_{ijk}} )^\zeta  = \zeta ( 1 + \lambda \cos \theta_{ijk} ) ^ {\zeta - 1} \lambda\frac{\partial \cos \theta_{ijk} } {\partial \mb{X}_i}
 \end{equation}
 
 As $\cos \theta$ can be expressed as:
 
 \begin{equation}
-\cos \theta_{ijk} = \frac{\mb{R}_{ij} \cdot  \mb{R}_{ik}} { \lVert \mb{R}_{ij} \rVert \lVert \mb{R}_{ik} \rVert}
+\cos \theta_{ijk} = \frac{\mb{R}_{ij} \cdot  \mb{R}_{ik}} { R_{ij}  R_{ik}}
 \end{equation}
 
-The gradient with respect to $\mb{X}_j$ is:
+Here, the gradient with respect to $\mb{X}_j$ or $\mb{X}_k$ is:
+
 \begin{equation}
-\frac{\partial \cos \theta_{ijk} } {\partial \mb{X}_j} = - \frac{\lVert R_{ik} \rVert \mb{R}_{ij} \cdot \mathbf{R}_{ik}  } { {\lVert R_{ij} \rVert \lVert R_{ik} \rVert } ^ 2 } \frac{\partial \lVert R_{ij} \rVert } {\partial \mb{X}_j} + \frac{\mb{R}_{ik}} { \lVert R_{ij} \rVert \lVert R_{ik} \rVert }
+\frac{\partial \cos \theta_{ijk} } {\partial \mb{X}_j} = -\frac{\cos{\theta}}{R_{ij}} \frac{\partial R_{ij}}{\partial \mb{X}_j} + \frac{\mb{R}_{ik}}{R_{ij} R_{ik}}
 \end{equation}
 
 The gradient with respect to $\mb{X}_i$ is:
+%\begin{equation}
+%\frac{\partial \cos \theta_{ijk} } {\partial \mb{X}_i} = -\frac{\mb{R}_{ij} \cdot \mathbf{R}_{ik}  }{ \left( R_{ij}  R_{ik} \right) ^ 2}  
+%\left( R_{ik} \frac{\partial R_{ij} } {\partial \mb{X}_i} + R_{ij} \frac{\partial R_{ik} } {\partial \mb{X}_i} \right) + \frac{ 2\mb{X}_i - \mb{X}_j - \mb{X}_k} { R_{ij} R_{ik} }
+%\end{equation}
+
 \begin{equation}
-\frac{\partial \cos \theta_{ijk} } {\partial \mb{X}_k} = -\frac{\mb{R}_{ij} \cdot \mathbf{R}_{ik}  }{ {\lVert R_{ij} \rVert \lVert R_{ik} \rVert } ^ 2} \lVert R_{ik} \rVert 
-\left( \lVert R_{ik} \frac{\partial \lVert R_{ij} \rVert } {\partial \mb{X}_i} + \lVert R_{ij} \rVert \frac{\partial \lVert R_{ik} \rVert } {\partial \mb{X}_i} \right) + \frac{ 2\mb{X}_i - \mb{X}_j - \mb{X}_k} { \lVert R_{ij} \rVert \lVert R_{ik} \rVert }
+\frac{\partial \cos \theta_{ijk} } {\partial \mb{X}_i} = -\frac{\cos{\theta}  }{  R_{ij}  R_{ik} }  
+\left( R_{ik} \frac{\partial R_{ij} } {\partial \mb{X}_i} + R_{ij} \frac{\partial R_{ik} } {\partial \mb{X}_i} \right) + \frac{ 2\mb{X}_i - \mb{X}_j - \mb{X}_k} { R_{ij} R_{ik} }
 \end{equation}
+
+
+\section{Tests}
+\subsection{Test 1 - Comparing answers with reference}
+\subsection{Test 2 - Calculation of the radial gradient}
+In this test, a simple system was constructed to check the numerical accuracy of the gradient calculations. The O-H molecule was constructed, with the O-H bond measuring 1.0 $\mathrm{\AA}$ and lying along the $x$-axis. The $y$ and $z$ coordinates were all set to 0. Thus, the derivative of the radial symmetry functions should only be non-zero in the $x$ direction, and the result can be easily checked. Additionally, the gradient should be symmetrical between the O and the H atoms.The answers are presented here. The ith atom is the O with coordinates of (-1, 0, 0| and the jth atom is the H with coordinates (1, 0, 0).
+
+
+$\eta = 19.53125$
+
+$\mathrm{R_s} = 0.8$
+
+$\frac{\partial R_{ij}}{\partial x} = 1$
+
+$\frac{\partial f_c (R_{ij}) } { \partial x} = - \frac{\pi}{2 * 0.8} sin \left( \frac {\pi}{0.8} \right) * 1 $
+
+From equation \eqref{eq:rad_derivative}, the final answer can be calculated:
+
+$\frac{\partial G^2_{ij}}{\partial x} = -3.475089$
 
 
 \end{document}
