@@ -6,6 +6,7 @@ module bp_symfuncs
     real(8), parameter :: pi = 4 * atan(1.0d0)
     integer, parameter :: max_bas = 150
     logical, parameter :: calc_grad = .true.
+    integer, parameter :: debug = 1
     !TODO: Check for good value for max_bas
 
     ! General Variables
@@ -248,10 +249,12 @@ contains
         ! Temporary counter
         logical :: el_found
 
-        ! List with all of the triplets of atoms
+        ! List with all of the triplets of atoms. This is equal to
+        ! The upper triangle of a NxN matrix times the number of
+        ! atoms
         integer :: cos_inds(3, max_atoms**2 * (max_atoms-1)/2 )
-        ! Number of triplets
-        integer :: num_cos
+        ! Number of triplets, maximum number of triplets
+        integer :: num_cos, max_cos
         ! Holds the radial basis during vectorized computation.
         real :: tmp_rad(max_etas), tmp_drad(3, max_etas, 2), term, tmp_dang(3, num_etzetlam, 3)
         integer :: natm
@@ -264,16 +267,17 @@ contains
         integer*8 :: begin_time, begin_loop
 
     100 format(I3,'   atomind    ',I3,'   geom')
+        max_cos = max_atoms**2 * (max_atoms-1)/2
         pi_div_Rc = pi / Rc
         bas_s(:) = 1
 
-        !!!! Consider COMMENT OUT TO SAVE TIME LATER
-        rad_bas(1)%g(:,:,:,:) = -4d0
-        rad_bas(2)%g(:,:,:,:) = -5d0
-        ang_bas(1)%b(:,:) = -2d0
-        ang_bas(2)%b(:,:) = -3d0
-        ang_bas(1)%g(:,:,:,:) = -6d0
-        ang_bas(2)%g(:,:,:,:) = -7d0
+        !!!! Con
+        rad_bas(1)%g(:,:,:,:) = 0.d0
+        rad_bas(2)%g(:,:,:,:) = 0.d0
+        ang_bas(1)%b(:,:) = 0.d0
+        ang_bas(2)%b(:,:) = 0.d0
+        ang_bas(1)%g(:,:,:,:) = 0.d0
+        ang_bas(2)%g(:,:,:,:) = 0.d0
 
         !!! This should be the same between calculations
         ang_coeff(:) = 2 ** (1 - etzetlam(:,2))
@@ -315,49 +319,9 @@ contains
         ! endif
 
          ! generate the cosine inds. This is an array of all of the unique
-         ! angles in the system.
-         !
-         ! this has been rewritten as a subroutine but I am unsure of timing
-         !
-
-
-!        num_cos = 0
-!find_cos: do i=1, natm
-!            if ( i .ne. j) then
-!                do j = 1, natm - 1
-!                    do k=j+1, natm
-!                        if ( i .eq. k) then
-!                            continue
-!                        elseif (j .eq. k) then
-!                            continue
-!                        else
-!                            num_cos = num_cos + 1
-!                            cos_inds(:,num_cos) = [i, j, k]
-!                        endif
-!                    enddo
-!                enddo
-!            else
-!                continue
-!            endif
-!        enddo find_cos
-        num_cos = 0
-find_cos: do i=1, natm
-            do j = 1, natm - 1
-                do k=j+1, natm
-                    if (i .eq. j) then
-                        goto 200
-                    elseif ( i .eq. k) then
-                        goto 300
-                    elseif (j .eq. k) then
-                        goto 300
-                    endif
-                    num_cos = num_cos + 1
-                    cos_inds(:,num_cos) = [i, j, k]
-            300 continue
-                enddo
-        200 continue
-            enddo
-        enddo find_cos
+         ! angles in the system. This is the key for the threads to use
+         ! when the parallel parts start.
+        call get_triplets(natm, max_cos, cos_inds, num_cos)
 
    !$OMP PARALLEL private(x, i, j, k, i_btype, j_btype,  tmp_rad,a,b,c,e) &
    !$OMP& private(my_type, mycos, myexp, myfc, myang) &
@@ -368,14 +332,7 @@ find_cos: do i=1, natm
            ! Calculate the r-ij vectors and distances and cutoff
 
 calc_bonds: do x=0, ut - 1
-            i = x/natm
-            j = mod(x, natm)
-            if (j .le. i) then
-                i = natm - i - 2
-                j = natm - j - 1
-            endif
-            i = i + 1
-            j = j + 1
+            call calc_ij_for_ut(i, j, x, natm)
 
             ! Distances
             drijdx(:, i, j) = coords(:, j, g) - coords(:, i, g)
@@ -385,9 +342,6 @@ calc_bonds: do x=0, ut - 1
             ! Calculate the other diagonal
             rij(j, i) = rij(i, j)
             drijdx(:, j, i) = -drijdx(:, i, j)
-
-            !calculate the drij/dxi matrix
-
 
             ! Cutoff
             if (rij(i, j) .lt. Rc) then
@@ -489,15 +443,9 @@ calc_ang: do x=1, num_cos
                 endif
             enddo
             if (my_type .eq. 0) cycle
-
+            !
             ! Calculate the cosine term
             !
-            ! Here, the
-            !
-            !mycos = dot_product(3, vecs(:, i, j), 1, vecs(:, i, k), 1)
-            !print *, vecs(:, i, j), vecs(:, i, k)
-            !mycos = dot_product(vecs(:,i,j), vecs(:,i,k))
-            !mycos = mycos / (rij(i, j) * rij(i, k))
             mycos = (rij(i,j)**2 + rij(i,k)**2 - rij(j,k)**2) / &
                     (2.0 * rij(i,j) * rij(i,k))
             ! Derivative of cos with respect to j, k. 2 is j, 3 is k
@@ -547,6 +495,23 @@ calc_ang: do x=1, num_cos
                     myb(m) * -2 * etzetlam(m,1) * (rij(i,j) + rij(i,k) + rij(j,k)) * mydexp(:,l)
                 tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
                     etzetlam(m,2) * etzetlam(m,3) * (1 + etzetlam(m,3) * mycos) ** (etzetlam(m,2) - 1) * mydcos(:,l)
+                ! REMOVE THIS LATER!!!!!!!!!!!!!!!
+                if (((i .eq. 1) .and. (j .eq. 2)).and.(k.eq.3)) then
+                if (l .eq. 1 .and. m .eq. 1) then
+                    print *, 'ds for geom', g
+                    print *, 'i',i,'j',j,'k',k
+                    print*, 'cos', mycos
+                    print*, 'gauss', myb(m)
+                    print*, 'fc_prod', myfc
+                    print*, 'eta', etzetlam(m,1),'zeta', etzetlam(m,2), 'lam', etzetlam(m,3)
+                    print*, 'dtheta'
+                    print *, etzetlam(m,2) * etzetlam(m,3) * (1 + etzetlam(m,3) * mycos) ** (etzetlam(m,2) - 1)
+                    print*, 'dgauss'
+                    print*, myb(m) * -2 * etzetlam(m,1) * (rij(i,j) + rij(i,k) + rij(j,k)) * mydexp(:,l)
+                    print*, 'dfc'
+                    print*,  mya(j) * myb(m) * mydfc(:,l)
+                endif
+                endif
                 tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m)
                enddo
             enddo
@@ -561,6 +526,9 @@ calc_ang: do x=1, num_cos
             !
             ! store the gradient
             !
+            tmp_ang_grad(:, i, a:b, c, e) = tmp_dang(:,:,1)
+            tmp_ang_grad(:, j, a:b, c, e) = tmp_dang(:,:,2)
+            tmp_ang_grad(:, k, a:b, c, e) = tmp_dang(:,:,3)
 
         enddo calc_ang
 !$OMP   ENDDO
@@ -568,13 +536,14 @@ calc_ang: do x=1, num_cos
 ! Copy the temporary basis sets to our main basis
 save_basis: do i=1, num_els
             i_end = bas_s(i) + g_num_of_els(i) - 1
-
             rad_bas(i)%b(:,bas_s(i):i_end) = tmp_rad_bas(:radbas_length(i), &
                 :g_num_of_els(i), i)
             rad_bas(i)%g(:,:,:,bas_s(i):i_end) = &
                 tmp_rad_grad(:, :, :radbas_length(i), :g_num_of_els(i), i)
             ang_bas(i)%b(:,bas_s(i):i_end) = tmp_ang_bas(:angbas_length(i), &
                 :g_num_of_els(i), i)
+            ang_bas(i)%g(:,:,:,bas_s(i):i_end) = &
+                tmp_ang_grad(:, :, :angbas_length(i), :g_num_of_els(i), i)
             mol_ids(i)%bas2mol(bas_s(i):i_end) = g - 1
             mol2bas(1:2,i,g) = [bas_s(i)-1, i_end]
             bas_s(i) = i_end + 1
@@ -600,14 +569,14 @@ save_basis: do i=1, num_els
     stop 'final_exit'
     end subroutine calculate_basis
 
-subroutine get_triplets(max_ind, max_trip, triplets, num_triplets)
+pure subroutine get_triplets(max_ind, max_trip, triplets, num_triplets)
 !
 ! NOT WORKING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! DONT USE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
 ! Get the number of unique triplets from 1 to max_ind. Return the triplets in
 ! the triplets variable and return the number of triplets in the num_triplets
-! variable.
+! variable
 !
     implicit none
     ! I/O variables
@@ -620,8 +589,8 @@ subroutine get_triplets(max_ind, max_trip, triplets, num_triplets)
 
     num_triplets = 0
     do i=1, max_ind
-        if ( i .ne. j) then
-            do j = 1, max_ind - 1
+        do j = 1, max_ind - 1
+            if ( i .ne. j) then
                 do k=j+1, max_ind
                     if ( i .eq. k) then
                         continue
@@ -632,16 +601,29 @@ subroutine get_triplets(max_ind, max_trip, triplets, num_triplets)
                         triplets(:,num_triplets) = [i, j, k]
                     endif
                 enddo
-            enddo
-        else
-            continue
-        endif
+            else
+                continue
+            endif
+        enddo
     enddo
-    if (num_triplets .gt. max_trip) then
-        stop 'get_triplets 1, exceeded array boundaries'
-    endif
-
 end subroutine get_triplets
+
+pure subroutine calc_ij_for_ut(i, j, x, natm)
+! Calculate the i, j coordiate for a square matrix based upon the
+! 0-baSED index of the upper triangle. For example, for a three by three matrix,
+! the indicies would range from 0-2 corresponding to the ij pairs (0,1);(0,2);(1,2)
+! This will return the ij pairs (1,2);(1,3);(2,3)
+    integer, intent(out) :: i, j
+    integer, intent(in) :: x, natm
+    i = x/natm
+    j = mod(x, natm)
+    if (j .le. i) then
+        i = natm - i - 2
+        j = natm - j - 1
+    endif
+    i = i + 1
+    j = j + 1
+end subroutine
 
 subroutine tick(t)
     integer*8, intent(OUT) :: t

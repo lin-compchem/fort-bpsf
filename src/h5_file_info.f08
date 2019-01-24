@@ -47,6 +47,7 @@ module h5_file_info
     character(len=19), dimension(2), parameter :: ofi_ang_names = ["h_angular_sym_funcs", "o_angular_sym_funcs"]
     character(len=19), dimension(2), parameter :: ofi_b2m_names = ["h_basis_to_molecule", "o_basis_to_molecule"]
     character(len=24), dimension(2), parameter :: ofi_rgrad_names = ["h_rad_cartesian_gradient", "o_rad_cartesian_gradient"]
+    character(len=24), dimension(2), parameter :: ofi_agrad_names = ["h_ang_cartesian_gradient", "o_ang_cartesian_gradient"]
     ! These are the handles for the input datasets
     integer(HID_T) atmnm_in, coord_in, natom_in
     integer(HID_T) atomnm_out, coord_out, natom_out
@@ -383,6 +384,29 @@ module h5_file_info
           CALL h5dclose_f(dset_id , error)
           CALL h5sclose_f(dspace_id, error)
           if (error .ne. 0) goto 1035
+      !
+      ! ANGULAR Gradient
+      !
+      ! h5screate_simple_f(rank, dims, dspace_id, error)
+         CALL h5screate_simple_f(4, angg_dims(:,i), dspace_id, error)
+         if (error .ne. 0) goto 1000
+      !
+      ! Create the dataset with default properties.
+      !
+          CALL h5dcreate_f(ofi, ofi_agrad_names(i), H5T_NATIVE_DOUBLE , dspace_id, &
+             dset_id, error)
+          if (error .ne. 0) goto 1005
+      !
+      ! Write the data
+      !
+          CALL h5dwrite_f(dset_id, H5T_NATIVE_double, ang_bas(i)%g(:,:,:,:), angg_dims(:,i), error)
+          if (error .ne. 0) goto 1010
+      !
+      ! Close and release resources.
+      !
+          CALL h5dclose_f(dset_id , error)
+          CALL h5sclose_f(dspace_id, error)
+          if (error .ne. 0) goto 1015
       !
       ! BAS2MOL
       !
