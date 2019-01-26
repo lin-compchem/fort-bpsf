@@ -248,6 +248,8 @@ contains
         integer :: atom_basis_index(max_atoms)
         ! Temporary counter
         logical :: el_found
+        ! Debugging integers
+        integer :: ii, jj, kk
 
         ! List with all of the triplets of atoms. This is equal to
         ! The upper triangle of a NxN matrix times the number of
@@ -261,6 +263,7 @@ contains
         ! Counters to keep track of elements location in basis set throughout
         ! multiple geometries.
         integer :: bas_s(num_els), i_end
+        integer :: ijkpairs(2,3)
         ! Variables for timing
         real(kind=8) :: t
         integer*8 :: now, clock_rate
@@ -443,6 +446,15 @@ calc_ang: do x=1, num_cos
                 endif
             enddo
             if (my_type .eq. 0) cycle
+            ! Calculate the ijk pairs for the derivative calculation.
+            ! I.e. in the gaussian filter we need ij and ik for i,
+            ! ij and jk for j
+!            ! Format: (:,1) is i
+!            ! [[j i i
+!            !   k k j]]
+!            ijkpairs(:,1) = [j,k]
+!            ijkpairs(:,2) = [i,k]
+!            ijkpairs(;,3) = [j,k]
             !
             ! Calculate the cosine term
             !
@@ -496,10 +508,13 @@ calc_ang: do x=1, num_cos
                 tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
                     etzetlam(m,2) * etzetlam(m,3) * (1 + etzetlam(m,3) * mycos) ** (etzetlam(m,2) - 1) * mydcos(:,l)
                 ! REMOVE THIS LATER!!!!!!!!!!!!!!!
-                if (((i .eq. 1) .and. (j .eq. 2)).and.(k.eq.3)) then
-                if (l .eq. 1 .and. m .eq. 1) then
+                if (((i .eq. 1) .and. (j .eq. 2)).and.((k.eq.3).and.(g.eq.1))) then
+                if (l .eq. 2 .and. m .eq. 1) then
+                    ii = i
+                    jj = j
+                    kk = k
                     print *, 'ds for geom', g
-                    print *, 'i',i,'j',j,'k',k
+                    print *, 'i',ii,'j',jj,'k',kk
                     print*, 'cos', mycos
                     print*, 'gauss', myb(m)
                     print*, 'fc_prod', myfc
@@ -507,9 +522,29 @@ calc_ang: do x=1, num_cos
                     print*, 'dtheta'
                     print *, etzetlam(m,2) * etzetlam(m,3) * (1 + etzetlam(m,3) * mycos) ** (etzetlam(m,2) - 1)
                     print*, 'dgauss'
-                    print*, myb(m) * -2 * etzetlam(m,1) * (rij(i,j) + rij(i,k) + rij(j,k)) * mydexp(:,l)
+                    print*, myb(m) * -2 * etzetlam(m,1) * (rij(ii,jj) + rij(ii,kk) + rij(jj,kk)) * mydexp(:,l)
                     print*, 'dfc'
                     print*,  mya(j) * myb(m) * mydfc(:,l)
+                    print*, 'rij', 'rik', 'rjk'
+                    print*,rij(ii,jj),rij(ii,kk),rij(jj,kk)
+                    print*,'drijdi'
+                    print*,drijdx(:,ii,jj)
+                    print*,'drijdj'
+                    print*,drijdx(:,jj,ii)
+                    print*,'drikdi'
+                    print*,drijdx(:,ii,kk)
+                    print*,'drikdk'
+                    print*,drijdx(:,kk,ii)
+                    print*,'drjkdj'
+                    print*,drijdx(:,jj,kk)
+                    print*,'drjkdk'
+                    print*,drijdx(:,kk,jj)
+                    print*,'xj-xi or vij'
+                    print*,coords(:,j,g) - coords(:,i,g)
+                    print*,'xk-xi or vik'
+                    print*, coords(:,k,g) - coords(:,i,g)
+                    print*,'xk-xj or vjk'
+                    print*, coords(:,k,g) - coords(:,j,g)
                 endif
                 endif
                 tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m)
