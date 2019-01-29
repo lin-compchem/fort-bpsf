@@ -462,11 +462,12 @@ calc_ang: do x=1, num_cos
                     (2.0 * rij(i,j) * rij(i,k))
             ! Derivative of cos with respect to j, k. 2 is j, 3 is k
             term = 1/(rij(i,j) * rij(i,k))
+            ! Derivative of cos in the j direction
             mydcos(:,2) = -mycos / rij(i,j) * drijdx(:,j,i)
-            mydcos(:,2) = mydcos(:,2) + term * (drijdx(:,j,i) - drijdx(:,j,k))
+            mydcos(:,2) = mydcos(:,2) + term * (coords(:,k,g) - coords(:,i,g))
+            ! Derivative of cos in the k direction
             mydcos(:,3) = -mycos / rij(i,k) * drijdx(:,k,i)
-            mydcos(:,3) = mydcos(:,3) + term * (drijdx(:,k,i) - drijdx(:,k,j))
-
+            mydcos(:,3) = mydcos(:,3) + term * (coords(:,j,g) - coords(:,i,g))
             ! Derivative of cos with respect to i
             mydcos(:,1) = -mycos * (rij(i,k) * drijdx(:,i,j) + rij(i,j)*drijdx(:,i,k))
             mydcos(:,1) = term * (mydcos(:,1) + 2*coords(:,i,g) - coords(:,j,g) - coords(:,k,g))
@@ -508,39 +509,49 @@ calc_ang: do x=1, num_cos
                 tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
                     etzetlam(m,2) * etzetlam(m,3) * (1 + etzetlam(m,3) * mycos) ** (etzetlam(m,2) - 1) * mydcos(:,l)
                 ! REMOVE THIS LATER!!!!!!!!!!!!!!!
-                if (((i .eq. 1) .and. (j .eq. 2)).and.((k.eq.3).and.(g.eq.1))) then
-                if (l .eq. 2 .and. m .eq. 1) then
+                if (((i .eq. 1) .and. (j .eq. 2)).and.((k.eq.3).and.(g.eq.13))) then
+                if (l .eq. 1 .and. m .eq. 1) then
                     ii = i
                     jj = j
                     kk = k
                     print *, 'ds for geom', g
                     print *, 'i',ii,'j',jj,'k',kk
+                    print *, 'coords, i then j  then k'
+                    print*, coords(:,i,g)
+                    print*,coords(:,j,g)
+                    print*,coords(:,k,g)
                     print*, 'cos', mycos
                     print*, 'gauss', myb(m)
                     print*, 'fc_prod', myfc
                     print*, 'eta', etzetlam(m,1),'zeta', etzetlam(m,2), 'lam', etzetlam(m,3)
-                    print*, 'dtheta'
-                    print *, etzetlam(m,2) * etzetlam(m,3) * (1 + etzetlam(m,3) * mycos) ** (etzetlam(m,2) - 1)
+                    print*, 'dzetadtheta'
+                    print*, etzetlam(m,2) * etzetlam(m,3) * (1 + etzetlam(m,3) * mycos) ** (etzetlam(m,2) - 1)
                     print*, 'dgauss'
                     print*, myb(m) * -2 * etzetlam(m,1) * (rij(ii,jj) + rij(ii,kk) + rij(jj,kk)) * mydexp(:,l)
                     print*, 'dfc'
                     print*,  mya(j) * myb(m) * mydfc(:,l)
+                    print*, 'dcosd Xi'
+                    print*, mydcos(:,1)
+                    print*, 'dcosd Xj'
+                    print*, mydcos(:,2)
+                    print*, 'dcosd Xk'
+                    print*, mydcos(:,3)
                     print*, 'rij', 'rik', 'rjk'
-                    print*,rij(ii,jj),rij(ii,kk),rij(jj,kk)
-                    print*,'drijdi'
-                    print*,drijdx(:,ii,jj)
-                    print*,'drijdj'
-                    print*,drijdx(:,jj,ii)
-                    print*,'drikdi'
-                    print*,drijdx(:,ii,kk)
-                    print*,'drikdk'
-                    print*,drijdx(:,kk,ii)
-                    print*,'drjkdj'
-                    print*,drijdx(:,jj,kk)
-                    print*,'drjkdk'
-                    print*,drijdx(:,kk,jj)
-                    print*,'xj-xi or vij'
-                    print*,coords(:,j,g) - coords(:,i,g)
+                    print*, rij(ii,jj),rij(ii,kk),rij(jj,kk)
+                    print*, 'drijdi'
+                    print*, drijdx(:,ii,jj)
+                    print*, 'drijdj'
+                    print*, drijdx(:,jj,ii)
+                    print*, 'drikdi'
+                    print*, drijdx(:,ii,kk)
+                    print*, 'drikdk'
+                    print*, drijdx(:,kk,ii)
+                    print*, 'drjkdj'
+                    print*, drijdx(:,jj,kk)
+                    print*, 'drjkdk'
+                    print*, drijdx(:,kk,jj)
+                    print*, 'xj-xi or vij'
+                    print*, coords(:,j,g) - coords(:,i,g)
                     print*,'xk-xi or vik'
                     print*, coords(:,k,g) - coords(:,i,g)
                     print*,'xk-xj or vjk'
