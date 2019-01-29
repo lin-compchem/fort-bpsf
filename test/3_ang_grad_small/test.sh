@@ -22,7 +22,7 @@ printf "\n###############\nSTEP 1\n###############\n"
 echo "make the coordinate files"
 #python make_grad_coords.py -i $first -o $second
 cp ./ref_xyzs/${delta}/*.xyz ./ref_xyzs/
-xyz_nn_analysis.py --in_folder ./ref_xyzs --out_folder ./ --out_prefix ${pre}
+../../scripts/xyz_nn_analysis.py --in_folder ./ref_xyzs --out_folder ./ --out_prefix ${pre}
 
 printf "\n###############\nSTEP 2\n###############\n"
 echo "run the program"
