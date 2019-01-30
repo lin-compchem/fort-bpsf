@@ -338,7 +338,7 @@ calc_bonds: do x=0, ut - 1
             call calc_ij_for_ut(i, j, x, natm)
 
             ! Distances
-            drijdx(:, i, j) = coords(:, j, g) - coords(:, i, g)
+            drijdx(:, i, j) =  coords(:, i, g) - coords(:, j, g)
             rij(i, j) = norm2(drijdx(:, i, j))
             drijdx(:, i, j) = drijdx(:, i, j) / rij(i, j)
 
@@ -379,7 +379,8 @@ calc_bonds: do x=0, ut - 1
             ! This cannot be reordered because we use intermediary calculation
             ! Results for the variables
             tmp_rad(:) = exp(-1 * eta(:,1,1) * (rij(i,j) - rs(:,1,1))**2)
-
+            ! Remove this later
+            myexp = tmp_rad(1)
             ! The derivative calculation
             do k=1, 2
              do l=1, 3
@@ -398,6 +399,15 @@ calc_bonds: do x=0, ut - 1
 
             tmp_rad(:) = tmp_rad(:) * fc(i,j)
 
+!            if (((g.eq.2).and.(i.eq.1)).and.(j.eq.2)) then
+!                print*,'i inds and coords'
+!                !print*, i, coords(:,i,g)
+!                !print*, j, coords(:,j,g)
+!                print*, 'myexp', myexp
+!                print*, 'myfc', fc(i,j)
+!
+!
+!            endif
 
             if (i_btype > 0) then
                 a = rad_b_ind(i_btype, el_key(i))
@@ -469,8 +479,10 @@ calc_ang: do x=1, num_cos
             mydcos(:,3) = -mycos / rij(i,k) * drijdx(:,k,i)
             mydcos(:,3) = mydcos(:,3) + term * (coords(:,j,g) - coords(:,i,g))
             ! Derivative of cos with respect to i
-            mydcos(:,1) = -mycos * (rij(i,k) * drijdx(:,i,j) + rij(i,j)*drijdx(:,i,k))
-            mydcos(:,1) = term * (mydcos(:,1) + 2*coords(:,i,g) - coords(:,j,g) - coords(:,k,g))
+!            mydcos(:,1) = -mycos * (rij(i,k) * drijdx(:,i,j) + rij(i,j)*drijdx(:,i,k))
+!            mydcos(:,1) = term * (mydcos(:,1) + 2*coords(:,i,g) - coords(:,j,g) - coords(:,k,g))
+            ! Actually, the derivative is equal and opposite to the sum of dj and dk
+            mydcos(:,1) = -mydcos(:,2)-mydcos(:,3)
 
             ! Derivatives of fc(ij)*fc(ik)*fc(jk)
             mydfc(:,1) = fc(j,k)*( fc(i,j)*dfcdx(:,i,k) + fc(i,k)*dfcdx(:,i,j) )
@@ -509,55 +521,58 @@ calc_ang: do x=1, num_cos
                 tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
                     etzetlam(m,2) * etzetlam(m,3) * (1 + etzetlam(m,3) * mycos) ** (etzetlam(m,2) - 1) * mydcos(:,l)
                 ! REMOVE THIS LATER!!!!!!!!!!!!!!!
-                if (((i .eq. 1) .and. (j .eq. 2)).and.((k.eq.3).and.(g.eq.13))) then
-                if (l .eq. 1 .and. m .eq. 1) then
-                    ii = i
-                    jj = j
-                    kk = k
-                    print *, 'ds for geom', g
-                    print *, 'i',ii,'j',jj,'k',kk
-                    print *, 'coords, i then j  then k'
-                    print*, coords(:,i,g)
-                    print*,coords(:,j,g)
-                    print*,coords(:,k,g)
-                    print*, 'cos', mycos
-                    print*, 'gauss', myb(m)
-                    print*, 'fc_prod', myfc
-                    print*, 'eta', etzetlam(m,1),'zeta', etzetlam(m,2), 'lam', etzetlam(m,3)
-                    print*, 'dzetadtheta'
-                    print*, etzetlam(m,2) * etzetlam(m,3) * (1 + etzetlam(m,3) * mycos) ** (etzetlam(m,2) - 1)
-                    print*, 'dgauss'
-                    print*, myb(m) * -2 * etzetlam(m,1) * (rij(ii,jj) + rij(ii,kk) + rij(jj,kk)) * mydexp(:,l)
-                    print*, 'dfc'
-                    print*,  mya(j) * myb(m) * mydfc(:,l)
-                    print*, 'dcosd Xi'
-                    print*, mydcos(:,1)
-                    print*, 'dcosd Xj'
-                    print*, mydcos(:,2)
-                    print*, 'dcosd Xk'
-                    print*, mydcos(:,3)
-                    print*, 'rij', 'rik', 'rjk'
-                    print*, rij(ii,jj),rij(ii,kk),rij(jj,kk)
-                    print*, 'drijdi'
-                    print*, drijdx(:,ii,jj)
-                    print*, 'drijdj'
-                    print*, drijdx(:,jj,ii)
-                    print*, 'drikdi'
-                    print*, drijdx(:,ii,kk)
-                    print*, 'drikdk'
-                    print*, drijdx(:,kk,ii)
-                    print*, 'drjkdj'
-                    print*, drijdx(:,jj,kk)
-                    print*, 'drjkdk'
-                    print*, drijdx(:,kk,jj)
-                    print*, 'xj-xi or vij'
-                    print*, coords(:,j,g) - coords(:,i,g)
-                    print*,'xk-xi or vik'
-                    print*, coords(:,k,g) - coords(:,i,g)
-                    print*,'xk-xj or vjk'
-                    print*, coords(:,k,g) - coords(:,j,g)
-                endif
-                endif
+!                if (((i .eq. 1) .and. (j .eq. 2)).and.((k.eq.3).and.(g.eq.14))) then
+!                if (l .eq. 1 .and. m .eq. 2) then
+!                    ii = i
+!                    jj = j
+!                    kk = k
+!                    print *, 'ds for geom', g
+!                    print *, 'i',ii,'j',jj,'k',kk
+!                    print *, 'coords, i then j  then k'
+!                    print*, coords(:,i,g)
+!                    print*, coords(:,j,g)
+!                    print*, coords(:,k,g)
+!                    print*, 'cos', mycos
+!                    print*, 'gauss', myb(m)
+!                    print*, 'fc_prod', myfc
+!                    print*, 'eta', etzetlam(m,1),'zeta', etzetlam(m,2), 'lam', etzetlam(m,3)
+!                    print*, 'dzetadtheta'
+!                    print*, etzetlam(m,2) * etzetlam(m,3) * (1 + etzetlam(m,3) * mycos) ** (etzetlam(m,2) - 1)
+!                    print*, 'dgauss'
+!                    print*, myb(m) * -2 * etzetlam(m,1) * (rij(ii,jj) + rij(ii,kk) + rij(jj,kk)) * mydexp(:,l)
+!                    print*, 'dfc'
+!                    print*,  mya(j) * myb(m) * mydfc(:,l)
+!                    print*, 'dcosd Xi'
+!                    print*, mydcos(:,1)
+!                    print*, 'dcosd Xj'
+!                    print*, mydcos(:,2)
+!                    print*, 'dcosd Xk'
+!                    print*, mydcos(:,3)
+!                    print*, 'rij', 'rik', 'rjk'
+!                    print*, rij(ii,jj),rij(ii,kk),rij(jj,kk)
+!                    print*, 'drijdi'
+!                    print*, drijdx(:,ii,jj)
+!                    print*, 'drijdj'
+!                    print*, drijdx(:,jj,ii)
+!                    print*, 'drikdi'
+!                    print*, drijdx(:,ii,kk)
+!                    print*, 'drikdk'
+!                    print*, drijdx(:,kk,ii)
+!                    print*, 'drjkdj'
+!                    print*, drijdx(:,jj,kk)
+!                    print*, 'drjkdk'
+!                    print*, drijdx(:,kk,jj)
+!                    print*, 'xj-xi or vij'
+!                    print*, coords(:,j,g) - coords(:,i,g)
+!                    print*,'xk-xi or vik'
+!                    print*, coords(:,k,g) - coords(:,i,g)
+!                    print*,'xk-xj or vjk'
+!                    print*, coords(:,k,g) - coords(:,j,g)
+!                    print*,'rij, rik, rjk'
+!                    print*,rij(i,j), rij(i,k), rij(j,k)
+!                    print*,rij(j,i), rij(k,i), rij(k,j)
+!                endif
+!                endif
                 tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m)
                enddo
             enddo

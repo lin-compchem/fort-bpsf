@@ -241,11 +241,7 @@ The gradients of the symmetry function terms are presented here in order of incr
 The gradient of the distance $R_{ij}$ with respect to $i$ is the unit vector along the line between the two points:
 
 \begin{equation}
-\frac{\partial R_{ij}}{\mb{X}_{i}} = \frac{\mathbf{X}_j-\mathbf{X}_i}{\lVert \mathbf{X}_j - \mathbf{X}_i \rVert}
-\end{equation}
-
-\begin{equation}
-\frac{\partial R_{ij}}{\mb{X}_{i}} = -\frac{\mathbf{X}_j-\mathbf{X}_i}{R_{ij}}
+\frac{\partial R_{ij}}{\mb{X}_{i}} = -\frac{\mathbf{X}_j-\mathbf{X}_i}{\lVert \mathbf{X}_j - \mathbf{X}_i \rVert} = -\frac{\mathbf{X}_j-\mathbf{X}_i}{R_{ij}}
 \end{equation}
 
 \begin{equation}
@@ -301,6 +297,10 @@ The gradient with respect to $\mb{X}_i$ is:
 \left( R_{ik} \frac{\partial R_{ij} } {\partial \mb{X}_i} + R_{ij} \frac{\partial R_{ik} } {\partial \mb{X}_i} \right) + \frac{ 2\mb{X}_i - \mb{X}_j - \mb{X}_k} { R_{ij} R_{ik} }
 \end{equation}
 
+This is implemented as and equivalent to:
+\begin{equation}
+\frac{\partial \cos \theta_{ijk} } {\partial \mb{X}_i} = - \frac{\partial \cos \theta_{ijk} } {\partial \mb{X}_j} - \frac{\partial \cos \theta_{ijk} } {\partial \mb{X}_k}
+\end{equation}
 
 \section{Tests}
 \subsection{Test 1 - Comparing answers with reference}

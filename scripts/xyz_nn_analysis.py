@@ -69,6 +69,13 @@ def get_args(args=None):
         required=False,
         action='store_true',
         default=False)
+    parser.add_argument(
+        '-a',
+        '--max_atoms',
+        help="Max atoms for size of h5 array",
+        type=int,
+        default=151
+    )
     return parser.parse_args(args)
 
 
