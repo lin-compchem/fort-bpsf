@@ -57,7 +57,7 @@ module bp_symfuncs
 
     ! Timing variables
     logical :: dotime = .true.
-    integer :: timing_interval = 100
+    integer :: timing_interval = 10000
 
 contains
     subroutine initialize_rs_eta(rs_start, rs_end, num, rs, etas)
