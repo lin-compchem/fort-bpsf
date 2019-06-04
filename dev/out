@@ -1,0 +1,135 @@
+/usr/include/x86_64-linux-gnu/curl/curl.h:typedef struct Curl_easy CURL;
+/usr/include/x86_64-linux-gnu/curl/curl.h:                                    callbacks using curl_easy_setopt options
+/usr/include/x86_64-linux-gnu/curl/curl.h: * curl_easy_setopt(). The first argument in the CINIT() macro is the [what]
+/usr/include/x86_64-linux-gnu/curl/curl.h: * NAME curl_easy_escape()
+/usr/include/x86_64-linux-gnu/curl/curl.h:CURL_EXTERN char *curl_easy_escape(CURL *handle,
+/usr/include/x86_64-linux-gnu/curl/curl.h: * NAME curl_easy_unescape()
+/usr/include/x86_64-linux-gnu/curl/curl.h:CURL_EXTERN char *curl_easy_unescape(CURL *handle,
+/usr/include/x86_64-linux-gnu/curl/curl.h: * NAME curl_easy_strerror()
+/usr/include/x86_64-linux-gnu/curl/curl.h: * The curl_easy_strerror function may be used to turn a CURLcode value
+/usr/include/x86_64-linux-gnu/curl/curl.h:CURL_EXTERN const char *curl_easy_strerror(CURLcode);
+/usr/include/x86_64-linux-gnu/curl/curl.h: * NAME curl_easy_pause()
+/usr/include/x86_64-linux-gnu/curl/curl.h: * The curl_easy_pause function pauses or unpauses transfers. Select the new
+/usr/include/x86_64-linux-gnu/curl/curl.h:CURL_EXTERN CURLcode curl_easy_pause(CURL *handle, int bitmask);
+/usr/include/x86_64-linux-gnu/curl/curl.h:#define curl_easy_setopt(handle,opt,param) curl_easy_setopt(handle,opt,param)
+/usr/include/x86_64-linux-gnu/curl/curl.h:#define curl_easy_getinfo(handle,info,arg) curl_easy_getinfo(handle,info,arg)
+/usr/include/x86_64-linux-gnu/curl/easy.h:#ifndef __CURL_EASY_H
+/usr/include/x86_64-linux-gnu/curl/easy.h:#define __CURL_EASY_H
+/usr/include/x86_64-linux-gnu/curl/easy.h:CURL_EXTERN CURL *curl_easy_init(void);
+/usr/include/x86_64-linux-gnu/curl/easy.h:CURL_EXTERN CURLcode curl_easy_setopt(CURL *curl, CURLoption option, ...);
+/usr/include/x86_64-linux-gnu/curl/easy.h:CURL_EXTERN CURLcode curl_easy_perform(CURL *curl);
+/usr/include/x86_64-linux-gnu/curl/easy.h:CURL_EXTERN void curl_easy_cleanup(CURL *curl);
+/usr/include/x86_64-linux-gnu/curl/easy.h: * NAME curl_easy_getinfo()
+/usr/include/x86_64-linux-gnu/curl/easy.h:CURL_EXTERN CURLcode curl_easy_getinfo(CURL *curl, CURLINFO info, ...);
+/usr/include/x86_64-linux-gnu/curl/easy.h: * NAME curl_easy_duphandle()
+/usr/include/x86_64-linux-gnu/curl/easy.h: * curl_easy_duphandle() for each new thread to avoid a series of identical
+/usr/include/x86_64-linux-gnu/curl/easy.h: * curl_easy_setopt() invokes in every thread.
+/usr/include/x86_64-linux-gnu/curl/easy.h:CURL_EXTERN CURL *curl_easy_duphandle(CURL *curl);
+/usr/include/x86_64-linux-gnu/curl/easy.h: * NAME curl_easy_reset()
+/usr/include/x86_64-linux-gnu/curl/easy.h:CURL_EXTERN void curl_easy_reset(CURL *curl);
+/usr/include/x86_64-linux-gnu/curl/easy.h: * NAME curl_easy_recv()
+/usr/include/x86_64-linux-gnu/curl/easy.h: * curl_easy_perform() with CURLOPT_CONNECT_ONLY option.
+/usr/include/x86_64-linux-gnu/curl/easy.h:CURL_EXTERN CURLcode curl_easy_recv(CURL *curl, void *buffer, size_t buflen,
+/usr/include/x86_64-linux-gnu/curl/easy.h: * NAME curl_easy_send()
+/usr/include/x86_64-linux-gnu/curl/easy.h: * curl_easy_perform() with CURLOPT_CONNECT_ONLY option.
+/usr/include/x86_64-linux-gnu/curl/easy.h:CURL_EXTERN CURLcode curl_easy_send(CURL *curl, const void *buffer,
+/usr/include/x86_64-linux-gnu/curl/multi.h: *          curl_easy_getinfo() calls (or similar). The point being that we
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:/* wraps curl_easy_setopt() with typechecking */
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h: *       _curl_easy_setopt_err_sometype();
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h: * _curl_easy_setopt_err_sometype below
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:#define curl_easy_setopt(handle, option, value)                               \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_long();                                         \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_curl_off_t();                                   \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_string();                                       \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_write_callback();                               \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_read_cb();                                      \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_ioctl_cb();                                     \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_sockopt_cb();                                   \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_opensocket_cb();                                \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_progress_cb();                                  \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_debug_cb();                                     \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_ssl_ctx_cb();                                   \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_conv_cb();                                      \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_seek_cb();                                      \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_cb_data();                                      \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_error_buffer();                                 \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_FILE();                                         \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_postfields();                                   \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_curl_httpost();                                 \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_curl_mimepost();                                \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_curl_slist();                                   \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_setopt_err_CURLSH();                                       \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  curl_easy_setopt(handle, _curl_opt, value);                                 \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:/* wraps curl_easy_getinfo() with typechecking */
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:#define curl_easy_getinfo(handle, info, arg)                                  \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_getinfo_err_string();                                      \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_getinfo_err_long();                                        \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_getinfo_err_double();                                      \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_getinfo_err_curl_slist();                                  \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_getinfo_err_curl_tlssesssioninfo();                        \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_getinfo_err_curl_certinfo();                               \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_getinfo_err_curl_socket();                                 \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:        _curl_easy_getinfo_err_curl_off_t();                                  \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  curl_easy_getinfo(handle, _curl_info, arg);                                 \
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:/* the actual warnings, triggered by calling the _curl_easy_setopt_err*
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_long,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a long argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_curl_off_t,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a curl_off_t argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_string,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:              "curl_easy_setopt expects a "
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_write_callback,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a curl_write_callback argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_read_cb,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a curl_read_callback argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_ioctl_cb,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a curl_ioctl_callback argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_sockopt_cb,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a curl_sockopt_callback argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_opensocket_cb,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:              "curl_easy_setopt expects a "
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_progress_cb,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a curl_progress_callback argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_debug_cb,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a curl_debug_callback argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_ssl_ctx_cb,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a curl_ssl_ctx_callback argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_conv_cb,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a curl_conv_callback argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_seek_cb,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a curl_seek_callback argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_cb_data,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:              "curl_easy_setopt expects a "
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_error_buffer,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:              "curl_easy_setopt expects a "
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_FILE,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a 'FILE *' argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_postfields,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a 'void *' or 'char *' argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_curl_httpost,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:              "curl_easy_setopt expects a 'struct curl_httppost *' "
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_curl_mimepost,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:              "curl_easy_setopt expects a 'curl_mime *' "
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_curl_slist,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a 'struct curl_slist *' argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_setopt_err_CURLSH,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_setopt expects a CURLSH* argument for this option")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_getinfo_err_string,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_getinfo expects a pointer to 'char *' for this info")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_getinfo_err_long,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_getinfo expects a pointer to long for this info")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_getinfo_err_double,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_getinfo expects a pointer to double for this info")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_getinfo_err_curl_slist,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_getinfo expects a pointer to 'struct curl_slist *' for this info")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_getinfo_err_curl_tlssesssioninfo,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:              "curl_easy_getinfo expects a pointer to "
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_getinfo_err_curl_certinfo,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:              "curl_easy_getinfo expects a pointer to "
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_getinfo_err_curl_socket,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_getinfo expects a pointer to curl_socket_t for this info")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:_CURL_WARNING(_curl_easy_getinfo_err_curl_off_t,
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:  "curl_easy_getinfo expects a pointer to curl_off_t for this info")
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:/* groups of curl_easy_setops options that take the same type of argument */
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h:/* groups of curl_easy_getinfo infos that take the same type of argument */
+/usr/include/x86_64-linux-gnu/curl/typecheck-gcc.h: * the actual expression passed to the curl_easy_setopt macro. This

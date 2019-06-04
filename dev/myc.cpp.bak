@@ -1,0 +1,37 @@
+#include <stdio.h>
+#include <curl/curl.h>
+#include <iostream>
+#include <string>
+
+using namespace std;
+int main(int arg, char **argv)
+{
+	CURL *curl;
+	CURLcode result;
+	string outs = "\'{\"instances\": [1.0, 2.0, 5.0]}\'\n";
+
+	curl = curl_easy_init();
+	if(curl) {
+		curl_easy_setopt(curl, CURLOPT_URL,
+					"http://localhost:8501/v1/models/half_plus_two:predict");
+	    curl_easy_setopt(curl, CURLOPT_POSTFIELDS,
+						"{\"instances\": [1.0, 2.0, 5.0]}"
+						);
+		result = curl_easy_perform(curl);
+        /* Check for errors */ 
+		// "\'{\"instances\": [1.0, 2.0, 5.0]}\'\n"
+		// "{\"instances\": [1.0, 2.0, 5.0]}"
+        if(result != CURLE_OK)
+          fprintf(stderr, "curl_easy_perform() failed: %s\n",
+                  curl_easy_strerror(result));
+ 
+        /* always cleanup */ 
+        curl_easy_cleanup(curl);
+	}
+	curl_global_cleanup();
+
+	cout << "Hello World\n";
+	cout << outs;
+	cout << '\n';
+	return 0;
+}

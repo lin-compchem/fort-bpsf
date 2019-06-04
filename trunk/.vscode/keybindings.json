@@ -1,7 +1,0 @@
-[
-    {
-        "key": "ctrl+,",
-        "command": "toggleVim",
-        "when": "editorTextFocus"
-    }
-]
