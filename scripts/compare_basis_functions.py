@@ -110,35 +110,35 @@ def main():
         big = 0
         small = 0
         equal = 0
-        if key == 'o_radial_sym_funcs':
-            if args.test == 1:
-                for j in range(i_shape[0]):
-                    for k in range(0,24):
-                        if np.isclose(ifi[key][j,k], rfi[key][j,k]):
-                            equal += 1
-                        elif ifi[key][j,k] > rfi[key][j,k]:
-                            big += 1
-                        elif ifi[key][j,k] < rfi[key][j,k]:
-                            small += 1
-                for j in range(i_shape[0]):
-                    for k in range(25,46):
-                        if np.isclose(ifi[key][j,k+2], rfi[key][j,k]):
-                            equal += 1
-                        elif ifi[key][j,k+2] > rfi[key][j,k]:
-                            big += 1
-                        elif ifi[key][j,k+2] < rfi[key][j,k]:
-                            small += 1
-            else:
-                equal, big, small = check2d(ifi, rfi, key, i_shape)
+#        if key == 'o_radial_sym_funcs':
+#            if args.test == 1:
+#                for j in range(i_shape[0]):
+#                    for k in range(0,24):
+#                        if np.isclose(ifi[key][j,k], rfi[key][j,k]):
+#                            equal += 1
+#                        elif ifi[key][j,k] > rfi[key][j,k]:
+#                            big += 1
+#                        elif ifi[key][j,k] < rfi[key][j,k]:
+#                            small += 1
+#                for j in range(i_shape[0]):
+#                    for k in range(25,46):
+#                        if np.isclose(ifi[key][j,k+2], rfi[key][j,k]):
+#                            equal += 1
+#                        elif ifi[key][j,k+2] > rfi[key][j,k]:
+#                            big += 1
+#                        elif ifi[key][j,k+2] < rfi[key][j,k]:
+#                            small += 1
+#            else:
+#               equal, big, small = check2d(ifi, rfi, key, i_shape)
         #
         # The gradient array may have different dimensions than the
         # other arrays
         #
-        elif 'gradient' in key:
+        if 'gradient' in key:
             for j in range(i_shape[0]):
                 for k in range(i_shape[1]):
                     for l in range(3):
-                        if np.isclose(ifi[key][j,k,l], rfi[key][j,k,l]):
+                        if np.isclose(ifi[key][j,k,l], rfi[key][j,k,l]).all():
                             equal += 1
                         elif ifi[key][j,k,l] > rfi[key][j,k,l]:
                             big += 1
