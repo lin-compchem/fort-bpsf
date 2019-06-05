@@ -326,11 +326,15 @@ contains
          ! when the parallel parts start.
         call get_triplets(natm, max_cos, cos_inds, num_cos)
 
-   !$OMP PARALLEL private(x, i, j, k, i_btype, j_btype,  tmp_rad,a,b,c,e) &
+   !$OMP PARALLEL &
+   !$OMP& private(i_btype, j_btype, tmp_rad) &
+   !$OMP& private(x, i, j, k, a, b, c, e, m) &
    !$OMP& private(my_type, mycos, myexp, myfc, myang) &
-   !$OMP& private(term, tmp_drad) &
-   !$OMP& reduction(+:tmp_rad_bas) reduction(+:tmp_rad_grad) &
-   !$OMP& reduction(+:tmp_ang_bas) reduction(+:tmp_ang_grad)
+   !$OMP& private(term, tmp_drad, mydcos, mydfc, mydexp) &
+   !$OMP& private(mya, myb, tmp_dang) &
+   !$OMP& reduction(+:tmp_rad_bas) reduction(+:tmp_ang_bas)
+   ! Cannot reduce the below arrays because they are too big?
+   !!$OMP& reduction(+:tmp_rad_grad) reduction(+:tmp_ang_grad)
    !$OMP    DO
            ! Calculate the r-ij vectors and distances and cutoff
 
@@ -399,24 +403,16 @@ calc_bonds: do x=0, ut - 1
 
             tmp_rad(:) = tmp_rad(:) * fc(i,j)
 
-!            if (((g.eq.2).and.(i.eq.1)).and.(j.eq.2)) then
-!                print*,'i inds and coords'
-!                !print*, i, coords(:,i,g)
-!                !print*, j, coords(:,j,g)
-!                print*, 'myexp', myexp
-!                print*, 'myfc', fc(i,j)
-!
-!
-!            endif
-
             if (i_btype > 0) then
                 a = rad_b_ind(i_btype, el_key(i))
                 b = a + rad_size(i_btype, el_key(i)) - 1
                 c = atom_basis_index(i)
                 e = el_key(i)
                 tmp_rad_bas(a:b, c, e) =  tmp_rad_bas(a:b, c, e) + tmp_rad(:)
+                !$OMP CRITICAL
                 tmp_rad_grad(:, i, a:b, c, e) = tmp_rad_grad(:, i, a:b, c, e) + tmp_drad(:, :, 1)
                 tmp_rad_grad(:, j, a:b, c, e) = tmp_rad_grad(:, j, a:b, c, e) + tmp_drad(:, :, 2)
+                !$OMP END CRITICAL
             endif
             !
             ! Here i am adding the mirror RBF and corresponding gradients. Note that
@@ -430,13 +426,17 @@ calc_bonds: do x=0, ut - 1
                 c = atom_basis_index(j)
                 e = el_key(j)
                 tmp_rad_bas(a:b, c, e) =  tmp_rad_bas(a:b, c, e) + tmp_rad(:)
+                !$OMP CRITICAL
                 tmp_rad_grad(:, i, a:b, c, e) = tmp_rad_grad(:, i, a:b, c, e) - tmp_drad(:, :, 1)
                 tmp_rad_grad(:, j, a:b, c, e) = tmp_rad_grad(:, j, a:b, c, e) - tmp_drad(:, :, 2)
+                !$OMP END CRITICAL
             endif
             enddo calc_bonds
     !$OMP ENDDO
+!
+! Main loop over angles
+!
     !$OMP DO
-
 calc_ang: do x=1, num_cos
             i = cos_inds(1, x)
             j = cos_inds(2, x)
@@ -456,15 +456,6 @@ calc_ang: do x=1, num_cos
                 endif
             enddo
             if (my_type .eq. 0) cycle
-            ! Calculate the ijk pairs for the derivative calculation.
-            ! I.e. in the gaussian filter we need ij and ik for i,
-            ! ij and jk for j
-!            ! Format: (:,1) is i
-!            ! [[j i i
-!            !   k k j]]
-!            ijkpairs(:,1) = [j,k]
-!            ijkpairs(:,2) = [i,k]
-!            ijkpairs(;,3) = [j,k]
             !
             ! Calculate the cosine term
             !
@@ -520,59 +511,6 @@ calc_ang: do x=1, num_cos
                     myb(m) * -2 * etzetlam(m,1) * (rij(i,j) + rij(i,k) + rij(j,k)) * mydexp(:,l)
                 tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
                     etzetlam(m,2) * etzetlam(m,3) * (1 + etzetlam(m,3) * mycos) ** (etzetlam(m,2) - 1) * mydcos(:,l)
-                ! REMOVE THIS LATER!!!!!!!!!!!!!!!
-!                if (((i .eq. 1) .and. (j .eq. 2)).and.((k.eq.3).and.(g.eq.14))) then
-!                if (l .eq. 1 .and. m .eq. 2) then
-!                    ii = i
-!                    jj = j
-!                    kk = k
-!                    print *, 'ds for geom', g
-!                    print *, 'i',ii,'j',jj,'k',kk
-!                    print *, 'coords, i then j  then k'
-!                    print*, coords(:,i,g)
-!                    print*, coords(:,j,g)
-!                    print*, coords(:,k,g)
-!                    print*, 'cos', mycos
-!                    print*, 'gauss', myb(m)
-!                    print*, 'fc_prod', myfc
-!                    print*, 'eta', etzetlam(m,1),'zeta', etzetlam(m,2), 'lam', etzetlam(m,3)
-!                    print*, 'dzetadtheta'
-!                    print*, etzetlam(m,2) * etzetlam(m,3) * (1 + etzetlam(m,3) * mycos) ** (etzetlam(m,2) - 1)
-!                    print*, 'dgauss'
-!                    print*, myb(m) * -2 * etzetlam(m,1) * (rij(ii,jj) + rij(ii,kk) + rij(jj,kk)) * mydexp(:,l)
-!                    print*, 'dfc'
-!                    print*,  mya(j) * myb(m) * mydfc(:,l)
-!                    print*, 'dcosd Xi'
-!                    print*, mydcos(:,1)
-!                    print*, 'dcosd Xj'
-!                    print*, mydcos(:,2)
-!                    print*, 'dcosd Xk'
-!                    print*, mydcos(:,3)
-!                    print*, 'rij', 'rik', 'rjk'
-!                    print*, rij(ii,jj),rij(ii,kk),rij(jj,kk)
-!                    print*, 'drijdi'
-!                    print*, drijdx(:,ii,jj)
-!                    print*, 'drijdj'
-!                    print*, drijdx(:,jj,ii)
-!                    print*, 'drikdi'
-!                    print*, drijdx(:,ii,kk)
-!                    print*, 'drikdk'
-!                    print*, drijdx(:,kk,ii)
-!                    print*, 'drjkdj'
-!                    print*, drijdx(:,jj,kk)
-!                    print*, 'drjkdk'
-!                    print*, drijdx(:,kk,jj)
-!                    print*, 'xj-xi or vij'
-!                    print*, coords(:,j,g) - coords(:,i,g)
-!                    print*,'xk-xi or vik'
-!                    print*, coords(:,k,g) - coords(:,i,g)
-!                    print*,'xk-xj or vjk'
-!                    print*, coords(:,k,g) - coords(:,j,g)
-!                    print*,'rij, rik, rjk'
-!                    print*,rij(i,j), rij(i,k), rij(j,k)
-!                    print*,rij(j,i), rij(k,i), rij(k,j)
-!                endif
-!                endif
                 tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m)
                enddo
             enddo
@@ -587,9 +525,11 @@ calc_ang: do x=1, num_cos
             !
             ! store the gradient
             !
+            !$OMP CRITICAL
             tmp_ang_grad(:, i, a:b, c, e) = tmp_dang(:,:,1)
             tmp_ang_grad(:, j, a:b, c, e) = tmp_dang(:,:,2)
             tmp_ang_grad(:, k, a:b, c, e) = tmp_dang(:,:,3)
+            !$OMP END CRITICAL
 
         enddo calc_ang
 !$OMP   ENDDO
@@ -701,4 +641,55 @@ real(kind=dp) function tock(t)
 
     tock = real(now - t)/real(clock_rate)
 end function tock
+
+subroutine find_num_els(natm, atmnms, el_key, g_num_of_els, &
+    atom_basis_index)
+! Go throgh the atoms in the geometry and find out what element each
+! atom is. Then tally the number of each element.
+! We output two things in this subroutine.
+!    1. el_key:
+!            The total number of each element.
+!    2. g_num_of_els:
+!           This subroutine only adds to this so it must be initialized before
+!           this routine
+!    3. atom_basis_index
+!           An array with len natm that is not the cumulative number of elements
+!           I.e. the vector of elements [O H H H O H H] would be:
+!                                        1 1 2 3 2 4 5
+    implicit none
+    !
+    ! IO Vars
+    !
+    integer, intent(in) :: natm
+    integer*1, intent(in) :: atmnms(natm)
+    integer, intent(inout) :: el_key(natm), & ! The element type that each atom belongs to
+                   g_num_of_els(num_els), & ! The number of atoms for each element
+                   atom_basis_index(natm)
+    !
+    ! Local Vars
+    !
+    integer i, j
+    logical el_found
+    !
+    ! Reinitialize variables
+    !
+ do_natoms: do i =1, natm
+                el_found = .false.
+                do j=1, num_els
+                    if (atmnms(i) .eq. els(j)) then
+                        g_num_of_els(j) = g_num_of_els(j) + 1
+                        el_found = .true.
+                        el_key(i) = j
+                        atom_basis_index(i) = g_num_of_els(j)
+                    endif
+                enddo
+                ! Error handling
+                if (el_found .eqv. .false.) then
+                    print *, 'Error, could not find element in geom for atom',i
+                    stop 'calc_bas 1'
+                endif
+           enddo do_natoms
+end subroutine find_num_els
+
+
 end module bp_symfuncs
