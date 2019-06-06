@@ -269,7 +269,7 @@ module h5_file_info
     subroutine deallocate_arrays()
        ! Deallocate the memory for the radial and angular basis functions
        ! Deallocate the memory for the mol_id variable
-       use bp_symfuncs, only : num_els, els, radbas_length, angbas_length
+       use bp_symfuncs, only : num_els, els
        implicit none
        ! Local vars
        integer i

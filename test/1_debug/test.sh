@@ -13,6 +13,6 @@ make clean
 make debug
 cd $cwd 
 $bin $ifi $ofi 
-../../scripts/compare_basis_functions.py -i $ofi -r $rfi 
+../../scripts/compare_basis_functions.py -i $ofi -r $rfi -v
 echo "For debugging, type:"
 echo "gdb --args $bin $ifi $ofi"

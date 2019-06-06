@@ -60,20 +60,45 @@ def get_args(args=None):
     )
     return parser.parse_args(args)
 
-def check2d(ifi, rfi, key, i_shape):
+def check2d(ifi, rfi, key, i_shape, verbose=False):
     equal = 0
     big = 0
     small = 0
     for j in range(i_shape[0]):
         for k in range(i_shape[1]):
+            fail = False
             if np.isclose(ifi[key][j,k], rfi[key][j,k]):
                 equal += 1
             elif ifi[key][j,k] > rfi[key][j,k]:
                 big += 1
+                fail = True
             elif ifi[key][j,k] < rfi[key][j,k]:
                 small += 1
+                fail = True
+            if fail and verbose:
+                print("For key {}, following inds failed: {}     {}".format(
+                    key, j, k))
     return equal, big, small
 
+def check4d(ifi, rfi, key, i_shape, verbose=False):
+    equal = 0
+    big = 0
+    small = 0
+    for j in range(i_shape[0]):
+     for k in range(i_shape[1]):
+         fail = False 
+         if np.isclose(ifi[key][j,k], rfi[key][j,k]).all():
+             equal += 1
+         elif (ifi[key][j,k] > rfi[key][j,k]).any():
+             big += 1
+             fail = True  
+         elif (ifi[key][j,k] < rfi[key][j,k]).any():
+             small += 1
+             fail = True  
+         if fail and verbose:
+             print("For key {}, following inds failed: {}     {}".format(
+                 key, j, k))
+    return equal, big, small
 def main():
     arg_vals = None
     args = get_args(arg_vals)
@@ -102,60 +127,26 @@ def main():
     for key in keys2check:
         i_shape = ifi[key].shape
         r_shape = rfi[key].shape
+        if args.verbose:
+            print("**************************")
+            print("Current key: %s" % key)
+            print("Key shape: ", i_shape)
+            print("Ref shape: ", r_shape)
         if (i_shape != r_shape) and (key != 'o_radial_sym_funcs') and \
         (args.test != 1):
             print("Error for key %s" % key)
             print("Input shape {0} for key {2} does not equal reference shape {1}".format(i_shape, r_shape, key))
             continue
-        big = 0
-        small = 0
-        equal = 0
-#        if key == 'o_radial_sym_funcs':
-#            if args.test == 1:
-#                for j in range(i_shape[0]):
-#                    for k in range(0,24):
-#                        if np.isclose(ifi[key][j,k], rfi[key][j,k]):
-#                            equal += 1
-#                        elif ifi[key][j,k] > rfi[key][j,k]:
-#                            big += 1
-#                        elif ifi[key][j,k] < rfi[key][j,k]:
-#                            small += 1
-#                for j in range(i_shape[0]):
-#                    for k in range(25,46):
-#                        if np.isclose(ifi[key][j,k+2], rfi[key][j,k]):
-#                            equal += 1
-#                        elif ifi[key][j,k+2] > rfi[key][j,k]:
-#                            big += 1
-#                        elif ifi[key][j,k+2] < rfi[key][j,k]:
-#                            small += 1
-#            else:
-#               equal, big, small = check2d(ifi, rfi, key, i_shape)
         #
-        # The gradient array may have different dimensions than the
+        # The gradient array have different dimensions than the
         # other arrays
         #
         if 'gradient' in key:
-            for j in range(i_shape[0]):
-                for k in range(i_shape[1]):
-                    for l in range(3):
-                        if np.isclose(ifi[key][j,k,l], rfi[key][j,k,l]).all():
-                            equal += 1
-                        elif ifi[key][j,k,l] > rfi[key][j,k,l]:
-                            big += 1
-                        elif ifi[key][j,k,l] < rfi[key][j,k,l]:
-                            small += 1
+            equal, big, small = check4d(ifi, rfi, key, i_shape, args.verbose)
         else:
             equal, big, small = check2d(ifi, rfi, key, i_shape)
-#            for j in range(i_shape[0]):
-#                for k in range(i_shape[1]):
-#                    if np.isclose(ifi[key][j,k], rfi[key][j,k]):
-#                        equal += 1
-#                    elif ifi[key][j,k] > rfi[key][j,k]:
-#                        big += 1
-#                    elif ifi[key][j,k] < rfi[key][j,k]:
-#                        small += 1
-        print( "SUMMARY FOR KEY %s" % key)
-        print( "Entries equal: %d" % equal)
+        print("SUMMARY FOR KEY %s" % key)
+        print("Entries equal: %d" % equal)
         print("Entries larger: %d" % big)
         print("Entries smaller: %d" % small)            
     ifi.close()

@@ -10,7 +10,6 @@ program save_bp_symfuncs
    real*8, allocatable :: coords(:,:,:)
    integer*1, allocatable :: atmnm(:,:)
    integer*2, allocatable :: natoms(:)
-   integer i, j, k
    ! Get the paths from the command line
    call get_file_names(h5_path, of_path)
 
