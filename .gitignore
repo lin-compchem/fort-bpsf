@@ -3,4 +3,6 @@
 **/.ipynb_checkpoints*
 **/__*__
 **/gen_symfuncs_*
+**/*.mod
+**/*.o
 back

@@ -28,8 +28,20 @@ program caller
     ! Now we can define variables based on how it was initialized
     call stage_calculation(natm, coords, atmnum)
 
-
 end program caller
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+subroutine send_to_c(natm, coords)
+    implicit none
+    real*8 :: coords(3,natm)
+    integer*2 :: natm
+    external print_coords
+
+    call print2d(coords, natm, 3)
+
+
+end subroutine send_to_c
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -37,6 +49,7 @@ subroutine stage_calculation(natm, coords, atmnum)
     ! After initialize_element_pars has been called, we can
     ! go and do the calculation
     use bp_symfuncs, only : calc_bp
+    use iso_fortran_env
     implicit none
     !
     ! IO Variables
@@ -62,11 +75,19 @@ subroutine stage_calculation(natm, coords, atmnum)
     !***********************************************
     ! Local variables
     !
+    integer :: num_rads(2) = [RAD, RAD], &
+               num_angs(2) = [HANG, OANG]
     max_atoms = MAXATOM
     print *, 'hello'
+    flush(output_unit)
+    ! Calculate the basis function    
     call calc_bp (natm, coords, atmnum, rad_bas, ang_bas, &
              rad_grad, ang_grad, max_atoms, g_num_of_els)
-    call write_basis(rad_bas, ang_bas, rad_grad, ang_grad)
+
+    ! Print the coords
+    call send_to_c(natm, coords)
+    call print_basis(rad_bas, MAXBAS, MAXATOM, num_rads, g_num_of_els, NUMELS)
+    call json_coords(coords, natm, 3)
     return
 
 end subroutine stage_calculation
