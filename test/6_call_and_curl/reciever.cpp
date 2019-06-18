@@ -83,7 +83,7 @@ void json_coords_(double *arr, short *nx, int *ny) {
     //string name = "coordinates";
     char name[] = "coordinates";
     StringBuffer outstr;
-    Writer<StringBuffer> writer(outstr);
+    PrettyWriter<StringBuffer> writer(outstr);
 
     writer.StartObject();
     writer.Key(name);
@@ -108,3 +108,28 @@ void json_save2d_(Document &document, string name, double *arr, int x, int y)
    int 
 }
 */
+//void json_coords_(double *arr, short *nx, int *ny) {
+//    int i, j;
+//    //Create a json document
+//    Document json_tree;
+//    //string name = "coordinates";
+//    char name[] = "coordinates";
+//    StringBuffer outstr;
+//    Writer<StringBuffer> writer(outstr);
+//
+//    writer.StartObject();
+//    writer.Key(name);
+//    writer.StartArray();
+//
+//    for(j = 0; j < *ny; ++j)
+//        for(i = 0; i < *nx; ++i)
+//        {
+//            int idx = j * *nx + i;
+//            printf("%f aaaaaaa\n", arr[idx]);
+//            writer.Double(arr[idx]);
+//        }
+//    writer.EndArray();
+//    writer.EndObject();
+//
+//    cout << outstr.GetString() << endl;
+//}
