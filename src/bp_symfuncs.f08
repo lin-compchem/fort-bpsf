@@ -1,8 +1,7 @@
 module bp_symfuncs
     implicit none
     integer, parameter :: dp = selected_real_kind(15,300)
-    integer, parameter :: num_els = 2
-    integer, parameter :: els(2) = [1, 8]
+
     real(8), parameter :: pi = 4 * atan(1.0d0)
     integer, parameter :: max_bas = 150
     logical, parameter :: calc_grad = .true.
@@ -10,40 +9,45 @@ module bp_symfuncs
     !TODO: Check for good value for max_bas
 
     ! General Variables
-    real(dp), parameter :: Rc = 8.0
-    real(dp), parameter :: pi_div_Rc = pi / Rc
+    real(dp) :: Rc = 0.0                  ! Rc cutoff in bp functions
+    integer :: num_els = 0                ! Number of elements to calc bf for
+    integer, parameter :: max_bonds = 0   ! Maximum number of BOND TYPES (categories of rad functions)
+    integer, parameter :: max_etas = 0    ! Maximum pairs of rs_eta
+    integer, parameter :: max_angles = 0  ! Maximum number of ANGLE TYPES (categories of ang functions)
+    integer :: max_ezl = 0              ! Maximum triplets of eprime/zeta/lambda
+
+
+    real(dp):: pi_div_Rc = 0.0d0
+    integer, allocatable :: els
 
     ! Radial variables
-    integer, parameter :: max_etas = 24
-    integer, parameter :: max_bonds = 2
-    real(dp) :: eta(max_etas, max_bonds, num_els) = 0d0
-    real(dp) :: rs(max_etas, max_bonds, num_els) = 0d0
-    integer :: rad_size(max_bonds, num_els) = 0, radbas_length(num_els) = 0, &
-&     rad_types(max_bonds, num_els) = 0, num_bonds(num_els) = 0, &
-&     rad_b_ind(max_bonds, num_els)
+    real(dp), allocatable :: eta(:,:,:)
+    real(dp), allocatable :: rs(:,:,:)
+
+    integer, allocatable :: &
+       rad_size(:,:), & ! The size of each radial basis set (max_eta for each atom type)
+       radbas_length(:), & ! The total lenght of the radial basis for each element
+       rad_types(:,:), & ! The radial basis bond types (atomic numbers)
+       num_bonds(:), &  ! The number of bond types for each element
+       rad_b_ind(:,:) ! ? Think this is where in the radbas each bond starts
 
     ! Angular Variables
-    integer, parameter :: max_angles = 3
-    integer, parameter :: max_lambdas = 2
-    integer, parameter :: max_eprimes = 3
-    integer, parameter :: max_zetas = 3
-    real(dp) :: zetas(max_zetas, max_angles, num_els) = 0d0
-    real(dp) :: eprimes(max_eprimes, max_angles, num_els) = 0d0
-    real(dp) :: lambdas(max_lambdas, max_angles, num_els) = 0d0
-    real(dp), allocatable :: etzetlam(:,:)
-    integer :: num_etzetlam
-    integer :: ang_size(max_angles, num_els) =0d0, angbas_length(num_els) = 0d0, &
-&              ang_types(2, max_angles, num_els),  num_angles(num_els) = 0,  &
-               ang_b_ind(max_angles, num_els)
-    
-    integer :: num_zetas = max_zetas
-    integer :: num_lambdas = max_lambdas
-    integer :: num_eprimes = max_eprimes
+    real(dp), allocatable :: &
+        etzetlam(:,:,:,:)  ! The eta/zeta/lambda variables. Array goes ([e,z,l],max_el,ang_type,el)
+    integer, allocatable :: &
+        ang_size(:,:), & ! The number of angular basis functions to calculate for each angle type
+        angbas_length(:), & ! The total angular basis length for each element
+        ang_types(:,:,:), & ! The ang types for each element
+        num_angles(:),  & ! The number of ang types for each element
+        ang_b_ind(:,:) ! ? Think this is where each angbas starts in the main basis
 
 
-    ! OPENMP Variables
-    ! integer, external :: omp_get_thread_num, omp_get_num_threads
+    ! Timing variables
+    logical :: dotime = .false.
+    integer :: timing_interval = 100
     
+    integer(kind=8), parameter :: inf = 789555466321 !input file handle
+
     type basis
         ! The basis functions. First dimension corresponds to atom, second dim
         ! is the basis value
@@ -61,9 +65,6 @@ module bp_symfuncs
         integer*4, dimension(:), allocatable :: bas2mol
     end type mol_id
 
-    ! Timing variables
-    logical :: dotime = .true.
-    integer :: timing_interval = 100
 
 contains
     subroutine initialize_rs_eta(rs_start, rs_end, num, rs, etas)
@@ -695,5 +696,319 @@ calc_ang: do x=1, num_cos
         continue
 
 end subroutine calc_bp
+!
+! Reads the input file
+! Calls routines to allocate arrays
+! Fills them
+subroutine read_input_file(in_path, h5_path)
+    ! Read the input file to the bp program and intitialize the variables
+    ! Set the requisite variables
+    implicit none
+    ! I/O Vars
+    character(len=:),allocatable, intent(inout) :: in_path, h5_path
+    character(len=400) :: line
+    integer :: io ! the iostat
+    character*200 :: words(6)
+
+    ! Begin
+    open(file=in_path, unit=inf, err=1000)
+    ! Loop through the file reading it.
+    io = 0
+    do while (io == 0)
+        read(inf,*, iostat=io) line
+        if (io .ne. 0) then
+            goto 1200
+        endif
+        call To_lower(line)
+        read(line,*) words
+        if (words(1) .eq. '#') then
+            cycle
+        elseif (words(1) .eq. '') then
+            cycle
+!        elseif (words(1)(1:7) .eq. ('in_file')) then
+!            read(words(2), *) h5_file
+        elseif (words(1)(1:2) .eq. ('rc')) then
+            read(words(2), *, err=1100) Rc
+        elseif (words(1)(1:7) .eq. ('num_els')) then
+            read(words(2), *, err=1150) num_els
+        elseif (words(1)(1:8) .eq. ('max_bond')) then
+            read(words(2), *, err=1250) max_bonds
+        elseif (words(1)(1:9) .eq. ('max_angle')) then
+            read(words(2), *, err=1300) max_angles
+        elseif (words(1)(1:10) .eq. ('max_rs_eta')) then
+            read(words(2), *, err=1350) max_etas
+        elseif (words(1)(1:16) .eq. ('max_zeta_lam_eta')) then
+            read(words(2), *, err=1400) max_ezl
+        elseif (words(1)(1:) .eq. ('timing_interval')) then
+            dotime = .true.
+            read(words(2), *, err=1450) timing_interval
+        elseif (words(1)(1:7) .eq. ('element')) then
+            exit
+        else
+            goto 1050
+        endif
+    enddo
+
+    call check_inputs(h5_file)
+    call setup_variables()
+    call read_elements(ifi)
+
+    close(inf)
+
+    return
+
+   ! Error handling
+1000 print *, 'Error opening input file : ', in_path
+    stop 'read_input_file 1'
+
+1050 print *, 'Could not read keyword: ', words(1)
+    stop 'read_input_file 2'
+
+1100 print*, 'Error reading keyword "rc". Was it a real number?'
+    stop 'read_input_file 3'
+
+1150 print*, 'Error reading keyword "num_els". Was it an integer?'
+    stop 'read_input_file 4'
+
+1200 print *, 'Unspecified error reading input file. Were there elements in it?'
+    stop 'read_input_file 5'
+
+1250 print *, 'Error reading keyword "max_bond". Was it an integer?'
+    stop 'read_input_file 6'
+
+1300 print *, 'Error reading keyword "max_angle". Was it an integer?'
+    stop 'read_input_file 7'
+
+1350 print *, 'Error reading keyword "max_rs_eta". Was it an integer?'
+    stop 'read_input_file 8'
+
+1400 print *, 'Error reading keyword "max_zeta_lam_eta". Was it an integer?'
+    stop 'read_input_file 9'
+
+1450 print *, 'Error reading keyword "timing_interval". Was it an integer?'
+    stop 'read_input_file 10'
+
+end subroutine read_input_file
+!
+! Lower-case the string
+subroutine To_lower(str)
+    character(*), intent(inout) :: str
+    integer :: i
+
+    do i = 1, len(str)
+        select case(str(i:i))
+            case("A":"Z")
+            str(i:i) = achar(iachar(str(i:i))+32)
+        end select
+    end do
+end subroutine To_Lower
+!
+! Validate inputs before going further
+subroutine check_inputs(h5_path)
+    implicit none
+    character(len=:),allocatable, intent(inout) :: h5_path
+!    if (.not. allocated(h5_path)) then
+!        print *, "Error finding h5 input file, was the keyword in_file not ", &
+!                 "given?"
+!    endif
+    if (num_els .le. 0) then
+        print *, "Error, the number of elements must be specified at the top", &
+            ' of the file'
+        stop 'check_inputs 2'
+    endif
+    if (max_bonds .le. 0) then
+        print *, "Error, the maximum number of bond types must be specified at the top", &
+            ' of the file'
+        stop 'check_inputs 2'
+    endif
+    if (max_etas .le. 0) then
+        print *, "Error, the maximum number of eta/rs pairs must be specified at the top", &
+            ' of the file'
+        stop 'check_inputs 2'
+    endif
+    if (max_angles .le. 0) then
+        print *, "Error, the maximum number of angle types must be specified at the top", &
+            ' of the file'
+        stop 'check_inputs 2'
+    endif
+    if (max_ezl .le. 0) then
+        print *, "Error, the maximum number of zeta/lambda/eta triplets must be specified at the top", &
+            ' of the file'
+        stop 'check_inputs 2'
+    endif
+    if (Rc .le. 0) then
+        print *, "Error, the Rc cutoff must be specified at the top", &
+            ' of the file and be greater than 0'
+        stop 'check_inputs 2'
+    endif
+end subroutine check_inputs
+!
+! Allocate arrays that we need for reading data from the element section of the
+! Input file
+!
+subroutine setup_variables()
+    implicit none
+    pi_div_Rc = pi / Rc
+    allocate(els(num_els))
+    !
+    ! Allocate the radial variables
+    allocate(eta(max_etas, max_bonds, num_els))
+    allocate(rs(max_etas, max_bonds, num_els))
+    eta = 0d0
+    rs = 0d0
+    allocate(rad_size(max_bonds, num_els))
+    rad_size = 0
+    allocate(radbas_length(num_els))
+    radbas_length = 0
+    allocate(num_bonds(num_els))
+    num_bonds = 0
+    allocate(rad_b_ind(max_bonds, num_els))
+
+    !
+    ! Allocate the angular variables
+    !allocate(zetas(max_zetas, max_angles, num_els))
+    !allocate(eprimes(max_eprimes, max_angles, num_els))
+    !allocate(lambdas(max_lambdas, max_angles, num_els))
+    allocate(ang_size(max_angles, num_els))
+    allocate(angbas_length(num_els))
+    allocate(ang_types(2, max_angles, num_els))
+    allocate(num_angles(num_els))
+    allocate(ang_b_ind(max_angles, num_els))
+    allocate(etzetlam(max_ezl, 3, max_angles, num_els))
+end subroutine setup_variables
+!
+! Reads the elements section of the input file
+subroutine read_elements(ifi)
+    implicit none
+!
+! Local variables
+!
+    character(len=400) :: line   ! line to read stuff into
+    integer :: io                ! the iostat
+    character*200 :: words(6)
+    logical :: found             ! For exiting Loop
+    integer :: el, bt, at, i, re ! Counters
+
+    ! Go back to first element line
+    rewind(ifi)
+    found = .false.
+    do while (io .eq. 0)
+        read(ifi, *, err=100, iostat=io) line
+        read(line, *) words
+        call To_lower(words(1))
+        if (words(1)(:7) .eq. 'element') exit
+    enddo
+    if (io .ne. 0) goto 100
+
+    do el=1, num_el
+        !
+        ! Begin reading the elements
+        read(words(2), *, err=110) els(i)
+        read(words(3), *, err=120) num_bonds(el)
+        read(words(4), *, err=130) radbas_length(el)
+        read(words(5), *, err=140) num_angles(el)
+        read(words(6), *, err=150) angbas_length(el)
+        !
+        ! Read the bonds
+        do bt=1, num_bonds(el)
+            read(ifi, *, err=160) line
+            read(line, *) words
+            call to_lower(words(1))
+            if (words(1)(1:4) .ne. 'bond') goto 160
+            read(words(2), *, err=170) rad_types(bt, el)
+            read(ifi, *) line
+            read(line, *) words
+
+            re = 0
+            do while (words(1) .ne. 'end')
+                re = re + 1
+                read(words(1), *, err=180) rs(re, bt, el)
+                read(words(2), *, err=190) eta(re, bt, el)
+                read(ifi, *, iostat=io) line
+                if (io .ne. 0) goto 200
+                read(line, *) words
+                call To_lower(words(1))
+            enddo
+            rad_size(bt, el) = re
+
+        enddo
+
+        do at=1, num_angle(el)
+            read(ifi, *, err=210) line
+            read(line, *) words
+            call to_lower(words(1))
+            if (words(1)(1:4) .ne. 'angle') goto 210
+            read(words(2), *, err=220) ang_types(1, at, el)
+            read(words(3), *, err=220) ang_types(2, at, el)
+            read(ifi, *) line
+            read(line, *) words
+
+            re = 0
+            do while (words(1) .ne. 'end')
+                re = re + 1
+                read(words(1), *, err=230) etzetlam(re, 1, at, el)
+                read(words(2), *, err=240) etzetlam(re, 2, at, el)
+                read(words(3), *, err=250) etzetlam(re, 3, at, el)
+                read(ifi, *, iostat=io) line
+                if (io .ne. 0) goto 250
+                read(line, *) words
+                call To_lower(words(1))
+            enddo
+            ang_size(at, el) = re
+        enddo
+
+    enddo
+
+
+
+    return
+100 print *, 'Error finding elements line on second go. This is more than ', &
+             'just a user error'
+    stop 'read_elements 1'
+110 print *, 'Error on element line ', &
+             'First int after element is the atomic number'
+    stop 'read_elements 2'
+120 print *, 'Error on element line ', &
+             'Second int after element is the number of bond types'
+    stop 'read_elements 3'
+130 print *, 'Error on element line ', &
+             'Third int after element is the radial basis length'
+    stop 'read_elements 4'
+140 print *, 'Error on element line ', &
+             'Fourth int after element is the number of angle types'
+    stop 'read_elements 5'
+150 print *, 'Error on element line ', &
+             'Fifth int after element is the angular basis length'
+    stop 'read_elements 6'
+160 print *, 'Error starting bonds section. Looking for "bond" in line'
+    stop 'read_elements 7'
+170 print *, 'Error reading atomic number for bond type after "bond" keyword'
+    stop 'read_elements 8'
+180 print *, 'Error reading rs'
+    stop 'read_elements 9'
+190 print *, 'Error reading eta'
+    stop 'read_elements 10'
+200 print *, 'File ended while reading rs and eta during "bond" keyword'
+    stop 'read_elements 11'
+
+210 print *, 'Error starting angle section. Looking for "angle" in line'
+    stop 'read_elements 12'
+
+215 print *, 'Error reading 2 atomic numbers for angle type after "angle" keyword'
+    stop 'read_elements 11'
+
+220 print *, 'File ended while reading zetr, lambda and eta during "angle" keyword'
+    stop 'read_elements 11'
+
+230 print *, 'File ended while reading zeta during "angles" keyword'
+    stop 'read_elements 11'
+
+240 print *, 'File ended while reading lambda during "angles" keyword'
+    stop 'read_elements 11'
+
+250 print *, 'File ended while reading eta during "angles" keyword'
+    stop 'read_elements 11'
+
+    end subroutine read_elements
 
 end module bp_symfuncs

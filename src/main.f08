@@ -6,12 +6,13 @@ program save_bp_symfuncs
    use h5_file_info
 
    implicit none
-   character(len=:), allocatable :: h5_path, of_path
+   character(len=:), allocatable :: if_path, of_path, h5_path
    real*8, allocatable :: coords(:,:,:)
    integer*1, allocatable :: atmnm(:,:)
    integer*2, allocatable :: natoms(:)
    ! Get the paths from the command line
-   call get_file_names(h5_path, of_path)
+   call get_file_names(if_path, of_path)
+   call read_input_file(if_path, h5_path)
 
    ! Get the data from the h5 file
    ! call initialize_rs_eta(0.8d0, 8.0d0, 24)
@@ -28,11 +29,9 @@ program save_bp_symfuncs
                         num_geoms, FInum_of_els, mol_ids, mol2bas)
    call save_basis(rad_bas, ang_bas, num_els, of_path, mol_ids, mol2bas)
    call deallocate_arrays()
-
-   
-
    return
 end program save_bp_symfuncs
+
 
 
 

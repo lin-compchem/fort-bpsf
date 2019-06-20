@@ -53,27 +53,30 @@ def get_args(args=None):
     return parser.parse_args(args)
 
 
-
-
 class Element:
     """
     Parameters for each element
     """
     def __init__(self, atm_num):
         self.atm_num = int(atm_num)
-    num_bonds = 0
-    bond_type = []
-    eta = []
-    rs = []
-    bond_len = []
-    max_bond = 0
+        # Bonds
+        self.num_bonds = 0
+        self.bond_type = []
+        self.bond_len = []
+        self.max_bond = 0
 
-    num_angles = 0
-    ang_len = []
-    zeta = []
-    lam = []
-    e2 = []
-    max_angle = 0
+        self.eta = []
+        self.rs = []
+
+        # Angles
+        self.num_angles = 0
+        self.ang_type = []
+        self.ang_len = []
+        self.max_angle = 0
+
+        self.zeta = []
+        self.lam = []
+        self.e2 = []
 
     def add_bond(self, bond_type, etas, rs):
         """
@@ -83,9 +86,9 @@ class Element:
         :param rs: list of floats
         :return:
         """
-        num_bonds += 1
+        self.num_bonds += 1
         self.bond_type.append(bond_type)
-        self.etas.append(etas)
+        self.eta.append(etas)
         self.rs.append(rs)
 
         if len(etas) != len(rs):
@@ -105,16 +108,16 @@ class Element:
         :param e2: list of floats
         :return:
         """
-        num_angles += 1
+        self.num_angles += 1
         self.ang_type.append(ang_type)
         self.zeta.append(zeta)
         self.lam.append(lam)
         self.e2.append(e2)
-        self.ang_leg.append(len(zeta))
+        self.ang_len.append(len(zeta))
 
     def count_data(self):
-        self.max_bond = max(bond_len)
-        self.max_angle = max(ang_len)
+        self.max_bond = sum(self.bond_len)
+        self.max_angle = sum(self.ang_len)
 
 
 def read_element(ifi, el_num):
@@ -130,11 +133,11 @@ def read_element(ifi, el_num):
         if l[:4] == 'bond':
             w = l.split()
             bt = int(w[1])
-            eta, rs = rlist(ifi)
+            rs, eta = rlist(ifi)
             e.add_bond(bt, eta, rs)
         elif l[:5] == 'angle':
             w = l.split()
-            at = int(w[1])
+            at = (int(w[1]), int(w[2]))
             zeta, lam, e2 = rlist(ifi)
             e.add_angle(at, zeta, lam, e2)
         elif l[:3] == 'end':
@@ -172,42 +175,67 @@ def rlist(ifi):
     :return: list of lists
     """
     line = rline(ifi)
-    num_l = len(line)
+    w = line.split()
+    num_l = len(w)
     if num_l <= 0:
         print("Error reading list")
         raise
-    w = line.split()
     dat = []
-    for i in num_l:
+    for i in range(num_l):
         dat.append([])
-        dat[i].append(float(w[i]))
+        try:
+            dat[i].append(float(w[i]))
+        except:
+            print("Error reading list at line: " + line)
+            raise
     while True:
         line = rline(ifi)
         if 'end' in line[:3]:
             break
         w = line.split()
-        for i in num_l:
+        for i in range(num_l):
             dat[i].append(float(w[i]))
     return dat
 
 
-def find_max_bas(els, pars):
+def find_maximum_pars(els, pars):
     """
-    Find the maximum number of bond and angle functions in the els list.
-    Add this number
-    :param els:
-    :param pars:
-    :return:
+    Find the maximum number of bond types, angle types, eta/rs combos,
+    eta/zeta/lambda combos
+
+    Parameters
+    ----------
+    els: list of Element
+    pars: dict
+
+    Returns
+    -------
+    None
+
     """
     max_angle = 0
     max_bond = 0
+    max_rs_eta = 0
+    max_zle = 0
+
     for e in els:
-        if e.max_angle > max_angle:
-            max_angle = e.max_angle
-        if e.max_bond > max_bond:
-            max_bond = e.max_bond
+        for a in e.ang_len:
+            if a > max_zle:
+                max_zle = a
+
+        for b in e.bond_len:
+            if b > max_rs_eta:
+                max_rs_eta = b
+
+        if e.num_angles > max_angle:
+            max_angle = e.num_angles
+        if e.num_bonds > max_bond:
+            max_bond = e.num_bonds
+
     pars['max_angle'] = max_angle
     pars['max_bond'] = max_bond
+    pars['max_rs_eta'] = max_rs_eta
+    pars['max_eta_zeta_lam'] = max_zle
 
 
 def default_pars():
@@ -218,9 +246,6 @@ def default_pars():
         The default dictionary of parameters
     """
     pars = {
-        'max_angle': 150,
-        'max_bonds': 150,
-        'calc_basis': True,
         'rc': None
     }
     return pars
@@ -258,7 +283,7 @@ def print_example():
     ang_types = (((1, 1), (1, 8)), ((8, 8), (1, 8), (1, 1)))
     ang_length = (len(ang_types[0]) * zetas.size * lam.size * eprime.size,
                   len(ang_types[1]) * zetas.size * lam.size * eprime.size)
-    zles = np.zeros((num_els, zetas.size * lam.size * eprime.size, 3),
+    ezls = np.zeros((num_els, zetas.size * lam.size * eprime.size, 3),
                     dtype=float)  # zeta lambda eprimes
     # TODO: change name now that numbering has changed
     for j in range(num_els):
@@ -266,32 +291,89 @@ def print_example():
         for e in eprime:
             for z in zetas:
                 for l in lam:
-                    zles[j, i, 0] = z
-                    zles[j, i, 1] = l
-                    zles[j, i, 2] = e
+                    ezls[j, i, 0] = e
+                    ezls[j, i, 1] = z
+                    ezls[j, i, 2] = l
                     i += 1
 
     pline = '{:} {:}'
     elline = 'element {:2d}'
-    bdline = 'bond {:2d}'
-    bb = '    {:10f}     {:10f}'
-    aa = '    {:10f}     {:10f}    {:10f}'
-    agline = 'angle {:2d} {:2d}'
+    bdline = '    bond {:2d}'
+    ebline = '    end bond'
+    bb = '        {:10f}     {:10f}'
+    aa = '        {:10f}     {:10f}    {:10f}'
+    agline = '    angle {:2d} {:2d}'
+    ealine = '    end angle'
     print('rc ', Rc)
     for i in range(num_els):
         print(elline.format(els[i]))
         for j, t in enumerate(rad_types[i]):
-            print(bdline, rad_types[j])
+            print(bdline.format(rad_types[i][j]))
             for b in range(rad_rs[i][j].size):
                 print(bb.format(rad_rs[i][j][b], rad_etas[i][j][b]))
-            print('end bond')
+            print(ebline)
         for j, t in enumerate(ang_types[i]):
             print(agline.format(*ang_types[i][j]))
-            for a in range(zles[i,j,:].size):
-                print(aa.format(*zles[i,j,:]))
-            print('end angle')
+            for a in range(ezls.shape[1]):
+                print(aa.format(*ezls[i,a,:]))
+            print(ealine)
         print('end element')
     sys.exit()
+
+
+def print_ifi(pars, els, ofi=sys.stdout):
+    """
+    This is why the script was written.
+    Print the fort-bpsf input file based on the keywords we have scraped.
+
+    Parameters
+    ----------
+    pars: dict
+        dictionary of keywords and corresponding parameters
+    els: list of Element
+        list of element classes with all of the bonds/angles/w.e. for each
+        element
+
+    Returns
+    -------
+    None
+
+    """
+    kwl = '{:15s}     {:} \n'    # Keyword line
+    pline = '{:} {:}\n'
+    elline = 'element {:2d}  {:2d}  {:2d}  {:2d}  {:2d}\n'
+    eeline = 'end element\n'
+    bdline = '    bond {:2d}\n'
+    ebline = '    end bond\n'
+    bb = '        {:10f}     {:10f}\n'
+    aa = '        {:10f}     {:10f}    {:10f}\n'
+    agline = '    angle {:2d} {:2d}\n'
+    ealine = '    end angle\n'
+
+    # Write the keywords at the top
+    for k, p in pars.items():
+        ofi.write(kwl.format(k, p))
+
+    # Write the elements
+    for e in els:
+        ofi.write(elline.format(e.atm_num, e.num_bonds, e.max_bond,
+                                e.num_angles, e.max_angle))
+        # Write the bonds
+        for bt in range(e.num_bonds):
+            ofi.write(bdline.format(e.bond_type[bt]))
+            for b in range(e.bond_len[bt]):
+                ofi.write(bb.format(e.rs[bt][b], e.eta[bt][b]))
+            ofi.write(ebline)
+        #Write the angles
+        for at in range(e.num_angles):
+            ofi.write(agline.format(*e.ang_type[at]))
+            for a in range(e.ang_len[at]):
+                ofi.write(aa.format(e.zeta[at][a], e.lam[at][a], e.e2[at][a]))
+            ofi.write(ealine)
+        ofi.write(eeline)
+
+
+
 
 
 def main():
@@ -304,6 +386,8 @@ def main():
 
     pars = default_pars()
 
+    calc_basis = True # This flag indicates whether the user has put maxbasis
+    num_els = 0
     els = []
 
     ifi = open(args.input, 'r')
@@ -320,8 +404,7 @@ def main():
         kw = w[0]
         if kw == 'rc':
             try:
-                pars[kw] = float(w[0])
-                pars['calc_rc'] = False
+                pars[kw] = float(w[1])
             except:
                 print("Error setting Rc")
                 raise
@@ -335,16 +418,19 @@ def main():
             els.append(read_element(ifi, el_num))
         elif kw == 'max_basis':
             try:
-                pars[kw] = int(w[0])
-                pars['calc_basis'] = False
+                pars[kw] = int(w[1])
+                calc_basis = False
             except:
                 print("Error setting Rc")
                 raise
     ifi.close()
-    if pars['calc_basis']:
-        find_max_bas(els, pars)
 
+# Add in the final keywords
+    if calc_basis:
+        find_maximum_pars(els, pars)
+    pars["num_els"] = len(els)
     print_ifi(pars, els)
+
 
 if __name__ == '__main__':
     main()
