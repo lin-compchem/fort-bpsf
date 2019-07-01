@@ -1,3 +1,5 @@
+! This pragma is the atomic number integer kind
+#define ANUMKIND 1
 module bp_symfuncs
     implicit none
     integer, parameter :: dp = selected_real_kind(15,300)
@@ -5,20 +7,20 @@ module bp_symfuncs
     real(8), parameter :: pi = 4 * atan(1.0d0)
     integer, parameter :: max_bas = 150
     logical, parameter :: calc_grad = .true.
-    integer, parameter :: debug = 1
     !TODO: Check for good value for max_bas
 
     ! General Variables
     real(dp) :: Rc = 0.0                  ! Rc cutoff in bp functions
     integer :: num_els = 0                ! Number of elements to calc bf for
-    integer, parameter :: max_bonds = 0   ! Maximum number of BOND TYPES (categories of rad functions)
-    integer, parameter :: max_etas = 0    ! Maximum pairs of rs_eta
-    integer, parameter :: max_angles = 0  ! Maximum number of ANGLE TYPES (categories of ang functions)
+    integer :: max_bonds = 0   ! Maximum number of BOND TYPES (categories of rad functions)
+    integer :: max_etas = 0    ! Maximum pairs of rs_eta
+    integer :: max_angles = 0  ! Maximum number of ANGLE TYPES (categories of ang functions)
     integer :: max_ezl = 0              ! Maximum triplets of eprime/zeta/lambda
+    integer :: verbose = 0
 
 
     real(dp):: pi_div_Rc = 0.0d0
-    integer, allocatable :: els
+    integer, allocatable :: els(:)
 
     ! Radial variables
     real(dp), allocatable :: eta(:,:,:)
@@ -26,27 +28,34 @@ module bp_symfuncs
 
     integer, allocatable :: &
        rad_size(:,:), & ! The size of each radial basis set (max_eta for each atom type)
+                        ! num eta rs for [num_rad_type, element]
        radbas_length(:), & ! The total lenght of the radial basis for each element
+                           ! [element]
        rad_types(:,:), & ! The radial basis bond types (atomic numbers)
+                         ! [num_rad_type,element]
        num_bonds(:), &  ! The number of bond types for each element
-       rad_b_ind(:,:) ! ? Think this is where in the radbas each bond starts
+                        ! [element]
+       rad_b_ind(:,:) ! This is where in the radbas each bond starts
 
     ! Angular Variables
     real(dp), allocatable :: &
-        etzetlam(:,:,:,:)  ! The eta/zeta/lambda variables. Array goes ([e,z,l],max_el,ang_type,el)
+        etzetlam(:,:,:,:),& ! The eta/zeta/lambda variables. Array goes ([e,z,l],max_el,ang_type,el)
+        ang_coeff(:,:,:)    ! The coefficient
     integer, allocatable :: &
+        num_etzetlam(:,:,:), & ! The number of eta/zeta/lambda
         ang_size(:,:), & ! The number of angular basis functions to calculate for each angle type
         angbas_length(:), & ! The total angular basis length for each element
         ang_types(:,:,:), & ! The ang types for each element
+                            ! Goes [atm_num,ang_num,el]
         num_angles(:),  & ! The number of ang types for each element
-        ang_b_ind(:,:) ! ? Think this is where each angbas starts in the main basis
+        ang_b_ind(:,:) ! ? This is where each angbas starts in the main basis
 
 
     ! Timing variables
     logical :: dotime = .false.
     integer :: timing_interval = 100
     
-    integer(kind=8), parameter :: inf = 789555466321 !input file handle
+    integer(kind=8), parameter :: inf = 7895554 !input file handle
 
     type basis
         ! The basis functions. First dimension corresponds to atom, second dim
@@ -67,128 +76,128 @@ module bp_symfuncs
 
 
 contains
-    subroutine initialize_rs_eta(rs_start, rs_end, num, rs, etas)
-!    This subroutine (re)initializes the rs and eta arrays according to the
-!    expression:
-!        1 / sqrt(2*eta) = 0.2 * Rs
-!    equal spacing is created between the rs_start and rs_end parameters
-        implicit none
-!        IO VARS
-        real(dp), intent(in) :: rs_start, rs_end
-        integer, intent(in) :: num
-        real(dp), intent(inout):: rs(:), etas(:)
-!        Local Vars
-        real(dp) rs_spacer
-        integer i
-!        Begin
-        rs_spacer = (rs_end - rs_start) / (num - 1)
-        do i=0, num - 1
-            rs(i + 1) = rs_start + i * rs_spacer
-        enddo
-        etas(1:num) = 0.5 * ( 5. / Rs(1:num)) ** 2
-    end subroutine initialize_rs_eta
+!    subroutine initialize_rs_eta(rs_start, rs_end, num, rs, etas)
+!!    This subroutine (re)initializes the rs and eta arrays according to the
+!!    expression:
+!!        1 / sqrt(2*eta) = 0.2 * Rs
+!!    equal spacing is created between the rs_start and rs_end parameters
+!        implicit none
+!!        IO VARS
+!        real(dp), intent(in) :: rs_start, rs_end
+!        integer, intent(in) :: num
+!        real(dp), intent(inout):: rs(:), etas(:)
+!!        Local Vars
+!        real(dp) rs_spacer
+!        integer i
+!!        Begin
+!        rs_spacer = (rs_end - rs_start) / (num - 1)
+!        do i=0, num - 1
+!            rs(i + 1) = rs_start + i * rs_spacer
+!        enddo
+!        etas(1:num) = 0.5 * ( 5. / Rs(1:num)) ** 2
+!    end subroutine initialize_rs_eta
     
-    subroutine initialize_element_pars
-        ! Initialize the element parameters (num bonds, etas, zetas, etc.)
-        implicit none
-        integer i, j
-        real(dp) :: rs_start = 0.8d0, rs_end = 8.0d0
-        integer :: num_rs = 24
-        ! Initialize all vars with 0s
+!    subroutine initialize_element_pars
+!        ! Initialize the element parameters (num bonds, etas, zetas, etc.)
+!        implicit none
+!        integer i, j
+!        real(dp) :: rs_start = 0.8d0, rs_end = 8.0d0
+!        integer :: num_rs = 24
+!        ! Initialize all vars with 0s
+!
+!
+!        ! Initialize the eta RS values
+!        rad_types(1, 1) = 1
+!        rad_size(1, 1) = num_rs
+!        rad_b_ind(1, 1) = 1
+!        call initialize_rs_eta(rs_start, rs_end, num_rs, rs(:, 1, 1), eta(:, 1, 1))
+!        rad_types(2, 1) = 8
+!        rad_size(2, 1) = num_rs
+!        rad_b_ind(2, 1) = rad_b_ind(1, 1) + rad_size(1, 1)
+!        call initialize_rs_eta(rs_start, rs_end, num_rs, rs(:, 2, 1), eta(:, 2, 1))
+!        num_bonds(1) = 2
+!
+!        rad_types(1, 2) = 1
+!        rad_size(1, 2) = num_rs
+!        rad_b_ind(1, 2) = 1
+!        call initialize_rs_eta(rs_start, rs_end, num_rs, rs(:, 1, 2), eta(:, 1, 2))
+!        rad_types(2, 2) = 8
+!        rad_size(2, 2) = num_rs
+!        rad_b_ind(2, 2) = rad_b_ind(1, 2) + rad_size(1, 2)
+!        call initialize_rs_eta(rs_start, rs_end, num_rs, rs(:, 2, 2), eta(:, 2, 2))
+!        num_bonds(2) = 2
+!
+!        do i=1, num_els
+!            radbas_length(i) = 0d0
+!            do j=1, max_bonds
+!                radbas_length(i) = radbas_length(i) +rad_size(j, i)
+!            enddo
+!        enddo
+!
+!        !Initialize the angle variables
+!        ang_types(:, 1, 1) = [1, 1]
+!        ang_types(:, 2, 1) = [1, 8]
+!        num_angles(1) = 2
+!        ang_types(:, 1, 2) = [8, 8]
+!        ang_types(:, 2, 2) = [1, 8]
+!        ang_types(:, 3, 2) = [1, 1]
+!        num_angles(2) = 3
+!
+!        ang_b_ind(1, :) = 0
+!        do i=1, num_els
+!            angbas_length(i) = 0
+!            do j=1, num_angles(i)
+!                ang_b_ind(j, i) = ang_b_ind(j, i) + angbas_length(i) + 1
+!                lambdas(1:2, j, i) = [-1.d0, 1.d0]
+!                eprimes(1:3, j, i) = [0.001d0, 0.01d0, 0.05d0]
+!                zetas(1:3, j, i) = [1.d0, 4.d0, 16.d0]
+!                ang_size(j, i) = 2 * 3 * 3
+!                angbas_length(i) = angbas_length(i) + ang_size(j, i)
+!            enddo
+!        enddo
+!        !TODO: THIS MUST BE CHANGED IF THE ETAS ZETAS LAMBDAS ARE NOT ALL
+!        !      THE SAME
+!        call init_eta_zeta_lambda(eprimes(:,1,1), zetas(:,1,1), lambdas(:,1,1),&
+!             num_etzetlam, etzetlam)
+!    end subroutine initialize_element_pars
 
-        
-        ! Initialize the eta RS values
-        rad_types(1, 1) = 1
-        rad_size(1, 1) = num_rs
-        rad_b_ind(1, 1) = 1
-        call initialize_rs_eta(rs_start, rs_end, num_rs, rs(:, 1, 1), eta(:, 1, 1))
-        rad_types(2, 1) = 8
-        rad_size(2, 1) = num_rs
-        rad_b_ind(2, 1) = rad_b_ind(1, 1) + rad_size(1, 1)
-        call initialize_rs_eta(rs_start, rs_end, num_rs, rs(:, 2, 1), eta(:, 2, 1))
-        num_bonds(1) = 2
-        
-        rad_types(1, 2) = 1
-        rad_size(1, 2) = num_rs
-        rad_b_ind(1, 2) = 1
-        call initialize_rs_eta(rs_start, rs_end, num_rs, rs(:, 1, 2), eta(:, 1, 2))
-        rad_types(2, 2) = 8
-        rad_size(2, 2) = num_rs
-        rad_b_ind(2, 2) = rad_b_ind(1, 2) + rad_size(1, 2)
-        call initialize_rs_eta(rs_start, rs_end, num_rs, rs(:, 2, 2), eta(:, 2, 2))
-        num_bonds(2) = 2
-
-        do i=1, num_els
-            radbas_length(i) = 0d0
-            do j=1, max_bonds
-                radbas_length(i) = radbas_length(i) +rad_size(j, i)
-            enddo
-        enddo
-
-        !Initialize the angle variables
-        ang_types(:, 1, 1) = [1, 1]
-        ang_types(:, 2, 1) = [1, 8]
-        num_angles(1) = 2
-        ang_types(:, 1, 2) = [8, 8]
-        ang_types(:, 2, 2) = [1, 8]
-        ang_types(:, 3, 2) = [1, 1]
-        num_angles(2) = 3
-
-        ang_b_ind(1, :) = 0
-        do i=1, num_els
-            angbas_length(i) = 0
-            do j=1, num_angles(i)
-                ang_b_ind(j, i) = ang_b_ind(j, i) + angbas_length(i) + 1
-                lambdas(1:2, j, i) = [-1.d0, 1.d0]
-                eprimes(1:3, j, i) = [0.001d0, 0.01d0, 0.05d0]
-                zetas(1:3, j, i) = [1.d0, 4.d0, 16.d0]
-                ang_size(j, i) = 2 * 3 * 3
-                angbas_length(i) = angbas_length(i) + ang_size(j, i)
-            enddo
-        enddo
-        !TODO: THIS MUST BE CHANGED IF THE ETAS ZETAS LAMBDAS ARE NOT ALL
-        !      THE SAME
-        call init_eta_zeta_lambda(eprimes(:,1,1), zetas(:,1,1), lambdas(:,1,1),&
-             num_etzetlam, etzetlam)
-    end subroutine initialize_element_pars
-
-    subroutine init_eta_zeta_lambda(in_eta, in_zeta, in_lambda, &
-                                    o_num_ezl, o_ezl)
-    ! Initialize the ezl array which has all possible etas, zetas, and
-    ! lambdas stored in an array for vectorized computations
-    implicit none
-    ! I/O Variables
-    real(kind=8), intent(in) :: in_eta(:), in_zeta(:), in_lambda(:)
-    integer, intent(out) :: o_num_ezl
-    real(kind=8), allocatable, intent(inout) :: o_ezl(:,:)
-    ! Local variables
-    integer :: my_neta, my_nzeta, my_nlambda
-    integer :: e, z, l, i
-
-    if (rank(in_eta) .gt. 1) then
-        stop 'init_eta_zeta_lambda invalid eta rank'
-    elseif (rank(in_zeta) .gt. 1) then
-        stop 'init_eta_zeta_lambda invalid zeta rank'
-    elseif (rank(in_lambda) .gt. 1) then
-        stop 'init_eta_zeta_lambda invalid lambda rank'
-    endif
-
-    my_neta = size(in_eta)
-    my_nzeta = size(in_zeta)
-    my_nlambda = size(in_lambda)
-    o_num_ezl = my_neta * my_nzeta * my_nlambda
-    allocate(o_ezl(o_num_ezl, 3))
-    i = 1
-    do e=1, num_eprimes
-        do z=1, num_zetas
-            do l=1, num_lambdas
-                o_ezl(i, 1:3) = [in_eta(e), in_zeta(z), in_lambda(l)]
-                i = i + 1
-            ENDDO
-        ENDDO
-    ENDDO
-
-    end subroutine init_eta_zeta_lambda
+!    subroutine init_eta_zeta_lambda(in_eta, in_zeta, in_lambda, &
+!                                    o_num_ezl, o_ezl)
+!    ! Initialize the ezl array which has all possible etas, zetas, and
+!    ! lambdas stored in an array for vectorized computations
+!    implicit none
+!    ! I/O Variables
+!    real(kind=8), intent(in) :: in_eta(:), in_zeta(:), in_lambda(:)
+!    integer, intent(out) :: o_num_ezl
+!    real(kind=8), allocatable, intent(inout) :: o_ezl(:,:)
+!    ! Local variables
+!    integer :: my_neta, my_nzeta, my_nlambda
+!    integer :: e, z, l, i
+!
+!    if (rank(in_eta) .gt. 1) then
+!        stop 'init_eta_zeta_lambda invalid eta rank'
+!    elseif (rank(in_zeta) .gt. 1) then
+!        stop 'init_eta_zeta_lambda invalid zeta rank'
+!    elseif (rank(in_lambda) .gt. 1) then
+!        stop 'init_eta_zeta_lambda invalid lambda rank'
+!    endif
+!
+!    my_neta = size(in_eta)
+!    my_nzeta = size(in_zeta)
+!    my_nlambda = size(in_lambda)
+!    o_num_ezl = my_neta * my_nzeta * my_nlambda
+!    allocate(o_ezl(o_num_ezl, 3))
+!    i = 1
+!    do e=1, num_eprimes
+!        do z=1, num_zetas
+!            do l=1, num_lambdas
+!                o_ezl(i, 1:3) = [in_eta(e), in_zeta(z), in_lambda(l)]
+!                i = i + 1
+!            ENDDO
+!        ENDDO
+!    ENDDO
+!
+!    end subroutine init_eta_zeta_lambda
 
     subroutine calculate_basis(rad_bas, ang_bas, coords, atmnms, natoms, &
                                max_atoms, num_geoms, num_of_els, mol_ids, &
@@ -199,7 +208,7 @@ contains
         integer, intent(in) :: num_geoms, max_atoms
         integer, intent(in) :: num_of_els(num_els)
         real*8, intent(in) :: coords(3, max_atoms, num_geoms)
-        integer*1, intent(in) :: atmnms(max_atoms, num_geoms)
+        integer*ANUMKIND, intent(in) :: atmnms(max_atoms, num_geoms)
         integer*2, intent(in) :: natoms(num_geoms)
 !TODO:  MAKE SURE THIS CORRESPONDS WITH THE ACTUAL DIMS IF TOO MUCH MONKEYING IS DONE
         type(basis), intent(inout) :: rad_bas(num_els), ang_bas(num_els)
@@ -366,7 +375,7 @@ subroutine find_num_els(natm, atmnms, el_key, g_num_of_els, &
     ! IO Vars
     !
     integer, intent(in) :: natm
-    integer*1, intent(in) :: atmnms(natm)
+    integer*ANUMKIND, intent(in) :: atmnms(natm)
     integer, intent(inout) :: el_key(natm), & ! The element type that each atom belongs to
                    g_num_of_els(num_els), & ! The number of atoms for each element
                    atom_basis_index(natm)
@@ -407,7 +416,7 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
     ! Input Variables
     !
     integer*2, intent(in) :: natm           ! number of atoms
-    integer*1, intent(in) :: atmnms(natm) ! atomic numbers
+    integer*ANUMKIND, intent(in) :: atmnms(natm) ! atomic numbers
     real*8, intent(in) :: coords(3, natm) ! coordinates
     integer, intent(in) :: max_atom ! size of basis
     !
@@ -432,6 +441,9 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
     integer a, b, c, e
     integer i, j, k, l, m
     integer x
+    ! Intermediate vars for angular funcitons
+    real(kind=8) :: ee, zz, ll
+    integer :: nang
     ! atom types for the ith and jth atom
     integer i_btype, j_btype, my_type
 
@@ -454,11 +466,10 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
 
     ! Holds the radial basis during vectorized computation.
     real*8 :: tmp_rad(max_etas), tmp_drad(3, max_etas, 2), term,&
-            tmp_dang(3, num_etzetlam, 3)
+            tmp_dang(3, max_ezl, 3)
     ! Intermediary variables for calculating angular basis functions
-    real*8 :: mycos, myexp, myfc, myang(num_etzetlam), mydcos(3,3)
-    real*8 :: mya(num_etzetlam), myb(num_etzetlam), &
-              ang_coeff(num_etzetlam)
+    real*8 :: mycos, myexp, myfc, myang(max_ezl), mydcos(3,3)
+    real*8 :: mya(max_ezl), myb(max_ezl)
     real*8 :: mydfc(3,3), mydexp(3,3)
     ! Get the number of upper triangular indicies
     ut = natm*(natm-1)/2
@@ -466,8 +477,6 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
     max_cos = natm * ut
     g_num_of_els(:) = 0
     atom_basis_index(:) = 0
-    ! This should be the same between calculations
-    ang_coeff(:) = 2 ** (1 - etzetlam(:,2))
     ! set the diagonals of some arrays to 0
     drijdx(:,:,:) = 0d0
     natom = int(natm,kind=4)
@@ -484,7 +493,7 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
 
    !$OMP PARALLEL &
    !$OMP& private(i_btype, j_btype, tmp_rad) &
-   !$OMP& private(x, i, j, k, a, b, c, e, m) &
+   !$OMP& private(x, i, j, k, a, b, c, e, m, ee, zz, ll) &
    !$OMP& private(my_type, mycos, myexp, myfc, myang) &
    !$OMP& private(term, tmp_drad, mydcos, mydfc, mydexp) &
    !$OMP& private(mya, myb, tmp_dang)
@@ -498,43 +507,9 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
 
 calc_bonds: do x=0, ut - 1
             call calc_ij_for_ut(i, j, x, natom)
-
-            ! Distances
-            drijdx(:, i, j) =  coords(:, i) - coords(:, j)
-            rij(i, j) = norm2(drijdx(:, i, j))
-            drijdx(:, i, j) = drijdx(:, i, j) / rij(i, j)
-
-            ! Calculate the other diagonal
-            rij(j, i) = rij(i, j)
-            drijdx(:, j, i) = -drijdx(:, i, j)
-
-            ! Cutoff
-            if (rij(i, j) .lt. Rc) then
-                fc(i, j) = 0.5 * ( cos(pi_div_Rc * rij(i, j)) + 1)
-                term = -0.5 * pi_div_Rc * sin(pi_div_RC * rij(i,j))
-                dfcdx(:, j, i) = term * drijdx(:, j, i)
-                dfcdx(:, i, j) = term * drijdx(:, i, j)
-            else
-                fc(i, j) = 0d0
-                dfcdx(:, i, j) = 0d0
-                dfcdx(:, j, i) = 0d0
-            endif
-            fc(j, i) = fc(i, j)
-            ! Find the bond type for the pair
-            i_btype = 0
-            j_btype = 0
-            do k=1, num_bonds(el_key(i))
-                if (rad_types(k, el_key(i)) .eq. atmnms(j)) then
-                    i_btype = k
-                    exit
-                endif
-            enddo
-            do k=1, num_bonds(el_key(j))
-                if (rad_types(k, el_key(j)) .eq. atmnms(i)) then
-                    j_btype = k
-                    exit
-                endif
-            enddo
+            call calc_rij(rij, drijdx, coords(:, i), coords(:, j), natom, i, j)
+            call calc_fc(fc, dfcdx, rij, drijdx, i, j, natom)
+            call find_bondtype(i_btype, j_btype, atmnms(i), atmnms(j), el_key(i), el_key(j))
 
             !Below should be changed if the etas change significantly as it
             !Assumes the etas are the same for all elements to save time
@@ -600,52 +575,26 @@ calc_ang: do x=1, num_cos
             i = cos_inds(1, x)
             j = cos_inds(2, x)
             k = cos_inds(3, x)
+            e = el_key(i)
 
             ! Find which angle type this triplet corresponds to
-            my_type = 0
-            do m=1, num_angles(el_key(i))
-                if (ang_types(1, m, el_key(i)) .eq. atmnms(j)) then
-                    if (ang_types(2, m, el_key(i)) .eq. atmnms(k)) then
-                        my_type = m
-                    endif
-                elseif (ang_types(2, m, el_key(i)) .eq. atmnms(j)) then
-                    if (ang_types(1, m, el_key(i)) .eq. atmnms(k)) then
-                        my_type = m
-                    endif
-                endif
-            enddo
+            my_type = find_angle_type(atmnms(j), atmnms(k), el_key(i))
+            nang = ang_size(my_type, e)
             if (my_type .eq. 0) cycle
-            !
-            ! Calculate the cosine term
-            !
-            mycos = (rij(i,j)**2 + rij(i,k)**2 - rij(j,k)**2) / &
-                    (2.0 * rij(i,j) * rij(i,k))
-            ! Derivative of cos with respect to j, k. 2 is j, 3 is k
-            term = 1/(rij(i,j) * rij(i,k))
-            ! Derivative of cos in the j direction
-            mydcos(:,2) = -mycos / rij(i,j) * drijdx(:,j,i)
-            mydcos(:,2) = mydcos(:,2) + term * (coords(:,k) - coords(:,i))
-            ! Derivative of cos in the k direction
-            mydcos(:,3) = -mycos / rij(i,k) * drijdx(:,k,i)
-            mydcos(:,3) = mydcos(:,3) + term * (coords(:,j) - coords(:,i))
-            ! Derivative of cos with respect to i
-!            mydcos(:,1) = -mycos * (rij(i,k) * drijdx(:,i,j) + rij(i,j)*drijdx(:,i,k))
-!            mydcos(:,1) = term * (mydcos(:,1) + 2*coords(:,i,g) - coords(:,j,g) - coords(:,k,g))
-            ! Actually, the derivative is equal and opposite to the sum of dj and dk
-            mydcos(:,1) = -mydcos(:,2)-mydcos(:,3)
 
-            ! Derivatives of fc(ij)*fc(ik)*fc(jk)
+            call calc_cos(rij, drijdx, coords, i, j, k, natom, mycos, mydcos)
+
+            ! Smoothing function and derivatives
+            myfc = fc(i, j) * fc(i, k) * fc(j, k)
             mydfc(:,1) = fc(j,k)*( fc(i,j)*dfcdx(:,i,k) + fc(i,k)*dfcdx(:,i,j) )
             mydfc(:,2) = fc(i,k)*( fc(i,j)*dfcdx(:,j,k) + fc(j,k)*dfcdx(:,j,i) )
             mydfc(:,3) = fc(i,j)*( fc(i,k)*dfcdx(:,k,j) + fc(j,k)*dfcdx(:,k,i) )
 
+            ! Begin
+            ! The gaussian parts that don't depend on eta
             ! the myexp term is written with 2 different expressions. this is
             ! from the 2018 paper
             myexp = (rij(i, j) + rij(i, k) + rij(j, k))**2
-            myfc = fc(i, j) * fc(i, k) * fc(j, k)
-
-            ! Begin
-            ! The gaussian parts that don't depend on eta
             mydexp(:,1) = drijdx(:,i,j) + drijdx(:,i,k)
             mydexp(:,2) = drijdx(:,j,i) + drijdx(:,j,k)
             mydexp(:,3) = drijdx(:,k,i) + drijdx(:,k,j)
@@ -653,9 +602,9 @@ calc_ang: do x=1, num_cos
             !
             ! Myang is the calculation for the angular basis functions
             !
-            mya(:) = ( 1 + etzetlam(:,3) * mycos) ** etzetlam(:,2)
-            myb(:) = exp(-1 * etzetlam(:,1) * myexp)
-            myang(:) = ang_coeff(:) * mya(:) * myb(:) * myfc
+            mya(:nang) = ( 1 + etzetlam(:nang,3,my_type,e) * mycos) ** etzetlam(:nang,2,my_type,e)
+            myb(:nang) = exp(-1 * etzetlam(:nang,1,my_type,e) * myexp)
+            myang(:nang) = ang_coeff(:nang,my_type,e) * mya(:) * myb(:) * myfc
             !
             ! Before we multiply by the smoothing functions, we can take
             ! advantage of this calculation and calculate the derivatives
@@ -664,13 +613,18 @@ calc_ang: do x=1, num_cos
 
             ! l is counter for looping over i, j, k
             do l=1, 3
-               do m=1, num_etzetlam
-                tmp_dang(:,m,l) = mya(j) * myb(m) * mydfc(:,l)
+               do m=1, nang
+                ee = etzetlam(m,1,my_type,e)
+                zz = etzetlam(m,2,my_type,e)
+                ll = etzetlam(m,3,my_type,e)
+                !tmp_dang(:,m,l) = mya(j) * myb(m) * mydfc(:,l)
+                ! was mya(m) ? incorrect?
+                tmp_dang(:,m,l) = mya(m) * myb(m) * mydfc(:,l)
                 tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
-                    myb(m) * -2 * etzetlam(m,1) * (rij(i,j) + rij(i,k) + rij(j,k)) * mydexp(:,l)
+                    myb(m) * -2 * ee * (rij(i,j) + rij(i,k) + rij(j,k)) * mydexp(:,l)
                 tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
-                    etzetlam(m,2) * etzetlam(m,3) * (1 + etzetlam(m,3) * mycos) ** (etzetlam(m,2) - 1) * mydcos(:,l)
-                tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m)
+                    zz * ll * (1 + ll * mycos) ** (zz - 1) * mydcos(:,l)
+                tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m,my_type,e)
                enddo
             enddo
             !
@@ -694,8 +648,143 @@ calc_ang: do x=1, num_cos
 !$OMP   ENDDO
 !$OMP END PARALLEL
         continue
-
+        return
+!contains
+!    subroutine calc_rij
+!        ! Distances
+!        drijdx(:, i, j) =  coords(:,i) - coords(:, j)
+!        rij(i, j) = norm2(drijdx(:, i, j))
+!        drijdx(:, i, j) = drijdx(:, i, j) / rij(i, j)
+!
+!        ! Calculate the other diagonal
+!        rij(j, i) = rij(i, j)
+!        drijdx(:, j, i) = -drijdx(:, i, j)
+!    end subroutine calc_rij
 end subroutine calc_bp
+!
+! Calculate rij and drij
+! This is the pair wise distance term and its derivative
+subroutine calc_rij(rij, drijdx, icoords, jcoords, natoms, i, j)
+    implicit none
+    ! I/O variables
+    real(kind=8), intent(inout) :: rij(natoms, natoms), &
+                                   drijdx(3, natoms, natoms)
+    real(kind=8), intent(in) :: icoords(3), jcoords(3)
+    integer, intent(in) :: natoms, i, j
+
+    ! Distances
+    drijdx(:, i, j) =  icoords - jcoords
+    rij(i, j) = norm2(drijdx(:, i, j))
+    drijdx(:, i, j) = drijdx(:, i, j) / rij(i, j)
+
+    ! Calculate the other diagonal
+    rij(j, i) = rij(i, j)
+    drijdx(:, j, i) = -drijdx(:, i, j)
+end subroutine calc_rij
+!
+! Calculate the cosine term and its derivative for the angular basis functions
+subroutine calc_cos(rij, drijdx, coords, i, j, k, natom, mycos, mydcos)
+    implicit none
+    integer, intent(in) :: natom, i, j, k
+    real(kind=8), intent(in) :: rij(natom, natom), drijdx(3, natom, natom), &
+                                coords(3, natom)
+    real(kind=8), intent(out) :: mycos, mydcos(3, 3)
+    !
+    ! Local Vars
+    real term
+
+    mycos = (rij(i,j)**2 + rij(i,k)**2 - rij(j,k)**2) / &
+            (2.0 * rij(i,j) * rij(i,k))
+    ! Derivative of cos with respect to j, k. 2 is j, 3 is k
+    term = 1/(rij(i,j) * rij(i,k))
+    ! Derivative of cos in the j direction
+    mydcos(:,2) = -mycos / rij(i,j) * drijdx(:,j,i)
+    mydcos(:,2) = mydcos(:,2) + term * (coords(:,k) - coords(:,i))
+    ! Derivative of cos in the k direction
+    mydcos(:,3) = -mycos / rij(i,k) * drijdx(:,k,i)
+    mydcos(:,3) = mydcos(:,3) + term * (coords(:,j) - coords(:,i))
+    ! Derivative of cos with respect to i
+!            mydcos(:,1) = -mycos * (rij(i,k) * drijdx(:,i,j) + rij(i,j)*drijdx(:,i,k))
+!            mydcos(:,1) = term * (mydcos(:,1) + 2*coords(:,i,g) - coords(:,j,g) - coords(:,k,g))
+    ! Actually, the derivative is equal and opposite to the sum of dj and dk
+    mydcos(:,1) = -mydcos(:,2)-mydcos(:,3)
+end subroutine calc_cos
+!
+! Calculate fc
+! This is the cutoff function and its derivative
+subroutine calc_fc(fc, dfcdx, rij, drijdx, i, j, natoms)
+    implicit none
+    real(kind=8), intent(inout) :: fc(natoms, natoms), &
+                                   dfcdx(3, natoms, natoms)
+    real(kind=8), intent(in) :: rij(natoms, natoms), &
+                                drijdx(3, natoms, natoms)
+    integer, intent(in) :: i, j, natoms
+    !
+    ! Local variables
+    real :: term
+            ! Cutoff
+            if (rij(i, j) .lt. Rc) then
+                fc(i, j) = 0.5 * ( cos(pi_div_Rc * rij(i, j)) + 1)
+                term = -0.5 * pi_div_Rc * sin(pi_div_RC * rij(i,j))
+                dfcdx(:, j, i) = term * drijdx(:, j, i)
+                dfcdx(:, i, j) = term * drijdx(:, i, j)
+            else
+                fc(i, j) = 0d0
+                dfcdx(:, i, j) = 0d0
+                dfcdx(:, j, i) = 0d0
+            endif
+            fc(j, i) = fc(i, j)
+end subroutine calc_fc
+!
+! Find the bond type for the atom numbers
+subroutine find_bondtype(i_btype, j_btype, inum, jnum, ikey, jkey)
+    implicit none
+    integer(kind=ANUMKIND), intent(in) :: inum, jnum ! These are the atomic numbers for i and j
+    integer, intent(in) :: ikey, jkey ! These are the index for each element (1 for H, 2 for O, 3 for C, etc.)
+    integer, intent(out) :: i_btype, j_btype
+    !
+    ! Local vars
+    integer k
+
+    i_btype = 0
+    j_btype = 0
+    do k=1, num_bonds(ikey)
+        if (rad_types(k, ikey) .eq. jnum) then
+            i_btype = k
+            exit
+        endif
+    enddo
+    do k=1, num_bonds(jkey)
+        if (rad_types(k, jkey) .eq. inum) then
+            j_btype = k
+            exit
+        endif
+    enddo
+end subroutine find_bondtype
+!
+! Find the angle type for the atom numbers
+integer pure function find_angle_type(jnum, knum, ikey)
+    implicit none
+    integer(kind=ANUMKIND), intent(in) :: jnum, knum ! These are the atomic numbers for i and j
+    integer, intent(in) :: ikey ! Index for ith element (1 for H, 2 for O, 3 for C, etc.)
+    !
+    ! Local vars
+    integer m
+
+    find_angle_type = 0
+    do m=1, num_angles(ikey)
+        if (ang_types(1, m, ikey) .eq. jnum) then
+            if (ang_types(2, m, ikey) .eq. knum) then
+                find_angle_type = m
+            endif
+        elseif (ang_types(2, m, ikey) .eq. jnum) then
+            if (ang_types(1, m, ikey) .eq. knum) then
+                find_angle_type = m
+            endif
+        endif
+    enddo
+    return
+end function find_angle_type
 !
 ! Reads the input file
 ! Calls routines to allocate arrays
@@ -706,21 +795,131 @@ subroutine read_input_file(in_path, h5_path)
     implicit none
     ! I/O Vars
     character(len=:),allocatable, intent(inout) :: in_path, h5_path
-    character(len=400) :: line
-    integer :: io ! the iostat
-    character*200 :: words(6)
 
     ! Begin
     open(file=in_path, unit=inf, err=1000)
-    ! Loop through the file reading it.
+    call read_input_header(h5_path)
+    call check_inputs()
+    call setup_element_variables()
+    call read_elements()
+    close(inf)
+    call setup_post_read()
+    call print_input()
+
+    return
+
+   ! Error handling
+1000 print *, 'Error opening input file : ', in_path
+    stop 'read_input_file 1'
+end subroutine read_input_file
+!
+! Print the input if verbose is on
+subroutine print_input
+implicit none
+    integer el, type
+
+    if (verbose .le. 0) return
+    print 10
+10 format(32('#'), ' INPUT SUMMARY ', 32('#'))
+20 format(A37, 6x, I3)
+80 format(/,A37, 6x, I3)
+30 format(A37, 6x, F6.3)
+!40 format(A35, 5x, A40)
+    !
+    ! Header variables
+    !
+    print 30, 'Rc:', Rc
+    print 20, 'Number of Elements:', num_els
+    print 20, 'Maximum Bond Types:', max_bonds
+    print 20, 'Maximum Angle Types:', max_angles
+    print 20, 'Maximum Radial Terms:', max_etas
+    print 20, 'Maximum Angular Terms:', max_ezl
+
+50 format(8x, 17('#'), '   Summary for Element :', I2, 3x, 17('#'))
+60 format(A37, 6x, I3, 4x, I3)
+70 format(A37, 6x, I3, 4x, I3, 4x, I3)
+    do el=1, num_els
+        print 50, el
+        print 20, 'Atomic Number:', els(el)
+        print 20, 'Radial Basis Size:', radbas_length(el)
+        print 20, 'Angular Basis Size:', angbas_length(el)
+        print 80, 'Number of Bond Types:', num_bonds(el)
+        do type=1, num_bonds(el)
+                print 60, 'Bond:', els(el), rad_types(type, el)
+        enddo
+        print 80, 'Number of Angle Types:', num_angles(el)
+        do type=1, num_angles(el)
+                print 70, 'Angle:',  ang_types(1, type, el), els(el), ang_types(2, type, el)
+        enddo
+        if (verbose .ge. 2) call print_basis(el)
+
+    enddo
+    return
+end subroutine print_input
+!
+! Print the basis for the el-th element
+subroutine print_basis(el)
+    implicit none
+    integer el, type, i
+    print 10, els(el)
+10 format(  14x, 10('#'), '  Basis for atomic number ', I3, 2x, 10('#'))
+!
+!   Radial basis
+!
+20 format(  19x, 5('#'), '  radial basis ', I3, '  -> ', I3, 2x, 5('#'))
+30 format(  29x, 'R_s', 19x, 'eta')
+40 format(  23x, F12.8, 10x, F12.8)
+    do type=1, num_bonds(el)
+        print 20, els(el), rad_types(type, el)
+        print 30
+        do i=1, rad_size(type, el)
+            print 40, rs(i, type, el), eta(i, type, el)
+        enddo
+    enddo
+!
+!  Angular basis
+!
+50 format(  19x, 5('#'), '  Angular basis ', I3 '  <-'  I3, '  -> ', I3, 2x, 5('#'))
+60 format(  15x, 'Eta', 17x, 'Zeta', 15x, 'Lambda')
+70 format(  10x, 3(F12.8,8x))
+    do type=1, num_angles(el)
+        print 50, ang_types(1, type, el), els(el), ang_types(2, type, el)
+        print 60
+        do i=1, ang_size(type, el)
+            print 70, etzetlam(i, :, type, el)
+        enddo
+    enddo
+end subroutine print_basis
+!
+! Read the header variables (everythin before the element section) from the
+! Input file
+subroutine read_input_header(h5_path)
+    use String_Functions, only : Count_Items, Reduce_Blanks
+implicit none
+    character(len=:),allocatable, intent(inout), optional :: h5_path
+    !
+    ! Local Variables
+    !
+    character(len=400) :: line
+    integer :: io               ! the iostat for read statements
+    character*200 :: words(2)
+    integer :: nwords
+
+        ! Loop through the file reading it.
     io = 0
     do while (io == 0)
-        read(inf,*, iostat=io) line
+        words(:) = ''
+        read(inf,'(A400)', iostat=io) line
         if (io .ne. 0) then
             goto 1200
         endif
+        line = Reduce_Blanks(line)
         call To_lower(line)
-        read(line,*) words
+        ! Assert that there are keywords in line
+        nwords = Count_Items(line)
+        if (nwords .lt. 2) goto 1600
+        ! Read the keywords into the variables
+        read(line,*,err=900) words
         if (words(1) .eq. '#') then
             cycle
         elseif (words(1) .eq. '') then
@@ -737,58 +936,70 @@ subroutine read_input_file(in_path, h5_path)
             read(words(2), *, err=1300) max_angles
         elseif (words(1)(1:10) .eq. ('max_rs_eta')) then
             read(words(2), *, err=1350) max_etas
-        elseif (words(1)(1:16) .eq. ('max_zeta_lam_eta')) then
+        elseif (words(1)(1:16) .eq. ('max_eta_zeta_lam')) then
             read(words(2), *, err=1400) max_ezl
-        elseif (words(1)(1:) .eq. ('timing_interval')) then
+        elseif (words(1)(1:15) .eq. ('timing_interval')) then
             dotime = .true.
             read(words(2), *, err=1450) timing_interval
+        elseif (words(1)(1:7) .eq. ('verbose')) then
+            read(words(2), *, err=1500) verbose
+        elseif (words(1)(1:9) .eq. ('geom_file')) then
+            if (.not. present(h5_path)) then
+print *, 'Warning: "geom_file" specified but subroutine was not called with',&
+         ' file path argument'
+            endif
+        ! Use a terrible method to read filepaths into the second word
+        ! This will fail if there is stuff at the end
+            h5_path = trim(line(11:))
+        !
+        ! Exit loop upon reading element header
+        !
         elseif (words(1)(1:7) .eq. ('element')) then
             exit
         else
             goto 1050
         endif
     enddo
-
-    call check_inputs(h5_file)
-    call setup_variables()
-    call read_elements(ifi)
-
-    close(inf)
-
     return
-
-   ! Error handling
-1000 print *, 'Error opening input file : ', in_path
-    stop 'read_input_file 1'
-
+ 900 print *, 'Error reading folowing line to words: ', line
+    stop 'read_input_header 1'
 1050 print *, 'Could not read keyword: ', words(1)
-    stop 'read_input_file 2'
+    stop 'read_input_header 2'
 
 1100 print*, 'Error reading keyword "rc". Was it a real number?'
-    stop 'read_input_file 3'
+    stop 'read_input_header 3'
 
 1150 print*, 'Error reading keyword "num_els". Was it an integer?'
-    stop 'read_input_file 4'
+    stop 'read_input_header 4'
 
 1200 print *, 'Unspecified error reading input file. Were there elements in it?'
-    stop 'read_input_file 5'
+    stop 'read_input_header 5'
 
 1250 print *, 'Error reading keyword "max_bond". Was it an integer?'
-    stop 'read_input_file 6'
+    stop 'read_input_header 6'
 
 1300 print *, 'Error reading keyword "max_angle". Was it an integer?'
-    stop 'read_input_file 7'
+    stop 'read_input_header 7'
 
 1350 print *, 'Error reading keyword "max_rs_eta". Was it an integer?'
-    stop 'read_input_file 8'
+    stop 'read_input_header 8'
 
 1400 print *, 'Error reading keyword "max_zeta_lam_eta". Was it an integer?'
-    stop 'read_input_file 9'
+    stop 'read_input_header 9'
 
 1450 print *, 'Error reading keyword "timing_interval". Was it an integer?'
-    stop 'read_input_file 10'
+    stop 'read_input_header 10'
 
-end subroutine read_input_file
+1500 print *, 'Error reading keyword "verbose". Must be followed by verbosity',&
+              ' integer'
+    stop 'read_input_header 11'
+
+!1550 print *, 'Error reading keyword geom_file string'
+!    stop 'read_input_header 12'
+
+1600 print *, 'Error for line', line, 'Each keyword must have at least 2 words'
+    stop 'read_input_header 13'
+end subroutine read_input_header
 !
 ! Lower-case the string
 subroutine To_lower(str)
@@ -804,9 +1015,9 @@ subroutine To_lower(str)
 end subroutine To_Lower
 !
 ! Validate inputs before going further
-subroutine check_inputs(h5_path)
+subroutine check_inputs()
     implicit none
-    character(len=:),allocatable, intent(inout) :: h5_path
+!    character(len=:),allocatable, intent(inout) :: h5_path
 !    if (.not. allocated(h5_path)) then
 !        print *, "Error finding h5 input file, was the keyword in_file not ", &
 !                 "given?"
@@ -846,7 +1057,7 @@ end subroutine check_inputs
 ! Allocate arrays that we need for reading data from the element section of the
 ! Input file
 !
-subroutine setup_variables()
+subroutine setup_element_variables()
     implicit none
     pi_div_Rc = pi / Rc
     allocate(els(num_els))
@@ -858,105 +1069,151 @@ subroutine setup_variables()
     rs = 0d0
     allocate(rad_size(max_bonds, num_els))
     rad_size = 0
+    allocate(rad_types(max_bonds, num_els))
     allocate(radbas_length(num_els))
     radbas_length = 0
     allocate(num_bonds(num_els))
     num_bonds = 0
     allocate(rad_b_ind(max_bonds, num_els))
-
+    rad_b_ind = 0
     !
     ! Allocate the angular variables
-    !allocate(zetas(max_zetas, max_angles, num_els))
-    !allocate(eprimes(max_eprimes, max_angles, num_els))
-    !allocate(lambdas(max_lambdas, max_angles, num_els))
     allocate(ang_size(max_angles, num_els))
+    ang_size = 0
     allocate(angbas_length(num_els))
+    angbas_length = 0
     allocate(ang_types(2, max_angles, num_els))
+    ang_types = 0
     allocate(num_angles(num_els))
+    num_angles = 0
     allocate(ang_b_ind(max_angles, num_els))
+    ang_b_ind = 0
     allocate(etzetlam(max_ezl, 3, max_angles, num_els))
-end subroutine setup_variables
+    etzetlam = 0.0d0
+    allocate(ang_coeff(max_ezl, max_angles, num_els))
+    ang_coeff = 0.0d0
+end subroutine setup_element_variables
+!
+! Finish setting up the variables
+subroutine setup_post_read()
+implicit none
+! Local Variables
+integer el, type, num_angs, term
+
+! Calculate the size of the radial basis for each element
+do el=1, num_els
+    term = 0
+    do type=1, num_bonds(el)
+        term = term + rad_size(type, el)
+    enddo
+    radbas_length(el) = term
+
+    term = 0
+    do type=1, num_angles(el)
+        term = term + ang_size(type, el)
+    enddo
+    angbas_length(el) = term
+enddo
+
+! Initialize the angle coefficients
+do el=1, num_els
+    do type=1, num_angles(el)
+        num_angs = ang_size(type,el)
+        ang_coeff(:num_angs,type,el) = 2 ** (1 - etzetlam(:num_angs, 2, type, el))
+    enddo
+enddo
+return
+!100 print *, "Error, number of supplied radial basis functions does not equal ",&
+!"number in element keyword"
+!    print *, "Declared: ", radbas_length(el), "Counted:", term
+!    stop 'setup_post_read 1'
+!200 print *, "Error, number of supplied radial basis functions does not equal ",&
+!"number in element keyword"
+!    stop 'setup_post_read 2'
+end subroutine setup_post_read
 !
 ! Reads the elements section of the input file
-subroutine read_elements(ifi)
+subroutine read_elements()
     implicit none
 !
 ! Local variables
 !
     character(len=400) :: line   ! line to read stuff into
     integer :: io                ! the iostat
-    character*200 :: words(6)
-    logical :: found             ! For exiting Loop
-    integer :: el, bt, at, i, re ! Counters
+    character*200 :: words(36)
+    integer :: el, bt, at, re    ! Counters
 
     ! Go back to first element line
-    rewind(ifi)
-    found = .false.
+    rewind(inf)
+    io = 0
     do while (io .eq. 0)
-        read(ifi, *, err=100, iostat=io) line
-        read(line, *) words
-        call To_lower(words(1))
+        read(inf, '(A400)', err=100, iostat=io) line
+        call To_lower(line)
+        read(line, '(A400)') words(1)
         if (words(1)(:7) .eq. 'element') exit
     enddo
     if (io .ne. 0) goto 100
-
-    do el=1, num_el
+    do el=1, num_els
         !
         ! Begin reading the elements
-        read(words(2), *, err=110) els(i)
+        if (words(1)(1:3) .eq. 'end')  read(inf, '(A400)', iostat=io) line
+        read(line, *, iostat=io) words(1:4)
+        if (io .ne. 0) goto 270
+        read(words(2), *, err=110) els(el)
         read(words(3), *, err=120) num_bonds(el)
-        read(words(4), *, err=130) radbas_length(el)
-        read(words(5), *, err=140) num_angles(el)
-        read(words(6), *, err=150) angbas_length(el)
+        read(words(4), *, err=140) num_angles(el)
         !
         ! Read the bonds
         do bt=1, num_bonds(el)
-            read(ifi, *, err=160) line
-            read(line, *) words
+            read(inf, '(A400)', err=160) line
+            read(line, *) words(1:2)
             call to_lower(words(1))
             if (words(1)(1:4) .ne. 'bond') goto 160
             read(words(2), *, err=170) rad_types(bt, el)
-            read(ifi, *) line
-            read(line, *) words
+            read(inf, '(A400)') line
+            read(line, *) words(1:2)
 
             re = 0
-            do while (words(1) .ne. 'end')
+            do while (words(1)(1:3) .ne. 'end')
                 re = re + 1
                 read(words(1), *, err=180) rs(re, bt, el)
                 read(words(2), *, err=190) eta(re, bt, el)
-                read(ifi, *, iostat=io) line
+                read(inf, '(A400)', iostat=io) line
                 if (io .ne. 0) goto 200
-                read(line, *) words
+                read(line, *) words(1:2)
                 call To_lower(words(1))
             enddo
             rad_size(bt, el) = re
 
         enddo
 
-        do at=1, num_angle(el)
-            read(ifi, *, err=210) line
-            read(line, *) words
+        do at=1, num_angles(el)
+            read(inf, '(A400)', err=210) line
+            read(line, *) words(1:3)
             call to_lower(words(1))
-            if (words(1)(1:4) .ne. 'angle') goto 210
-            read(words(2), *, err=220) ang_types(1, at, el)
-            read(words(3), *, err=220) ang_types(2, at, el)
-            read(ifi, *) line
-            read(line, *) words
+            if (words(1)(1:5) .ne. 'angle') goto 210
+            read(words(2), *, err=215) ang_types(1, at, el)
+            read(words(3), *, err=215) ang_types(2, at, el)
+            read(inf, '(A400)') line
+            read(line, *) words(1:3)
 
             re = 0
-            do while (words(1) .ne. 'end')
+            do while (words(1)(1:3) .ne. 'end')
                 re = re + 1
                 read(words(1), *, err=230) etzetlam(re, 1, at, el)
                 read(words(2), *, err=240) etzetlam(re, 2, at, el)
                 read(words(3), *, err=250) etzetlam(re, 3, at, el)
-                read(ifi, *, iostat=io) line
-                if (io .ne. 0) goto 250
-                read(line, *) words
+                read(inf, '(A400)', iostat=io) line
+                if (io .ne. 0) goto 220
+                read(line, *, iostat=io) words(1:3)
                 call To_lower(words(1))
             enddo
             ang_size(at, el) = re
         enddo
-
+        ! Wrap up this element. Assert that we have 'end angle' and 'end element'
+        read(inf, '(A400)', err=260) line
+        read(line, *) words(1)
+        if (words(1)(1:3) .ne. 'end') goto 260
     enddo
 
 
@@ -969,17 +1226,11 @@ subroutine read_elements(ifi)
              'First int after element is the atomic number'
     stop 'read_elements 2'
 120 print *, 'Error on element line ', &
-             'Second int after element is the number of bond types'
+             'First int after element should be the number of bond types'
     stop 'read_elements 3'
-130 print *, 'Error on element line ', &
-             'Third int after element is the radial basis length'
-    stop 'read_elements 4'
 140 print *, 'Error on element line ', &
-             'Fourth int after element is the number of angle types'
+             'Second int after element should be the number of angle types'
     stop 'read_elements 5'
-150 print *, 'Error on element line ', &
-             'Fifth int after element is the angular basis length'
-    stop 'read_elements 6'
 160 print *, 'Error starting bonds section. Looking for "bond" in line'
     stop 'read_elements 7'
 170 print *, 'Error reading atomic number for bond type after "bond" keyword'
@@ -995,20 +1246,24 @@ subroutine read_elements(ifi)
     stop 'read_elements 12'
 
 215 print *, 'Error reading 2 atomic numbers for angle type after "angle" keyword'
-    stop 'read_elements 11'
+    stop 'read_elements 13'
 
-220 print *, 'File ended while reading zetr, lambda and eta during "angle" keyword'
-    stop 'read_elements 11'
+220 print *, 'File ended while reading zeta, lambda and eta during "angle" keyword'
+    stop 'read_elements 14'
 
 230 print *, 'File ended while reading zeta during "angles" keyword'
-    stop 'read_elements 11'
+    stop 'read_elements 15'
 
 240 print *, 'File ended while reading lambda during "angles" keyword'
-    stop 'read_elements 11'
+    stop 'read_elements 16'
 
 250 print *, 'File ended while reading eta during "angles" keyword'
-    stop 'read_elements 11'
-
+    stop 'read_elements 17'
+260 print *, 'Error reading "end" statements at end of element'
+    print *, 'There should be "end angle" and "end element" on two separate lines'
+    stop 'read_elements 18'
+270 print *, 'Error reading element line, it should have 6 words'
+    stop 'read_elements 19'
     end subroutine read_elements
 
 end module bp_symfuncs

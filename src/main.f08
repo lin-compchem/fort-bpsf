@@ -21,7 +21,7 @@ program save_bp_symfuncs
    call FI_clean_inputs()
 
    ! Initialize the arrays
-   call initialize_element_pars() ! must be called before allocate_arrays
+   !call initialize_element_pars() ! must be called before allocate_arrays
    call allocate_arrays(rad_bas, ang_bas, atmnm, mol_ids, mol2bas)
 
    ! Woohoo!, the tricky parts are over now. Lets crunch some numbers

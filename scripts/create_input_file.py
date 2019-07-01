@@ -341,7 +341,7 @@ def print_ifi(pars, els, ofi=sys.stdout):
     """
     kwl = '{:15s}     {:} \n'    # Keyword line
     pline = '{:} {:}\n'
-    elline = 'element {:2d}  {:2d}  {:2d}  {:2d}  {:2d}\n'
+    elline = 'element {:2d}  {:2d}  {:2d}\n'
     eeline = 'end element\n'
     bdline = '    bond {:2d}\n'
     ebline = '    end bond\n'
@@ -356,8 +356,7 @@ def print_ifi(pars, els, ofi=sys.stdout):
 
     # Write the elements
     for e in els:
-        ofi.write(elline.format(e.atm_num, e.num_bonds, e.max_bond,
-                                e.num_angles, e.max_angle))
+        ofi.write(elline.format(e.atm_num, e.num_bonds, e.num_angles)
         # Write the bonds
         for bt in range(e.num_bonds):
             ofi.write(bdline.format(e.bond_type[bt]))

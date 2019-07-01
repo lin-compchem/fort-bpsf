@@ -2,9 +2,11 @@ rc                  8.0
 max_angle           3 
 max_bond            2 
 max_rs_eta          24 
-max_eta_zeta_lam     18 
+max_eta_zeta_lam    18 
 num_els             2 
-element  1   2  48   2  36
+geom_file           ../../test_files/2_water_clusters.h5
+verbose             1
+element   1   2   2
     bond  1
           0.800000      19.531250
           1.113043      10.089874
@@ -98,7 +100,7 @@ element  1   2  48   2  36
           0.050000      16.000000      1.000000
     end angle
 end element
-element  8   2  46   3  54
+element  8   2   3 
     bond  1
           0.800000      19.531250
           1.113043      10.089874

@@ -70,7 +70,12 @@ module h5_file_info
        character(len=*), intent(in) :: if_path
        ! Local vars
        integer err
+       logical file_exists
        ! Begin subroutine!
+       ! Assert that the file exists
+       inquire(file=if_path, exist=file_exists)
+       if (.not. file_exists) goto 1050
+       print *, if_path
        ! Initialize HDF5 interface
        call h5open_f(err)
        if (err .ne. 0) goto 1000
@@ -140,7 +145,9 @@ module h5_file_info
        stop "init_from_ifi 4"
  1040  print *, "Error getting coordinate dimensions"
        stop "init_from_ifi 5"
- 
+        stop "init_from_ifi 4"
+ 1050  print *, "Error, geom_file does not exist at path: ", if_path
+       stop "init_from_ifi 6"
     end subroutine FI_init_from_ifi
  
     subroutine FI_get_data(coords, natoms, atmnms)
@@ -269,7 +276,6 @@ module h5_file_info
     subroutine deallocate_arrays()
        ! Deallocate the memory for the radial and angular basis functions
        ! Deallocate the memory for the mol_id variable
-       use bp_symfuncs, only : num_els, els
        implicit none
        ! Local vars
        integer i
