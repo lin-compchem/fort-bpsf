@@ -35,7 +35,8 @@ module bp_symfuncs
                          ! [num_rad_type,element]
        num_bonds(:), &  ! The number of bond types for each element
                         ! [element]
-       rad_b_ind(:,:) ! This is where in the radbas each bond starts
+       rad_b_ind(:,:) ! This is where in the radbas each bond starts.
+                      ! I.e. 1 for first, radsize + 1 for second, sum(radsize(1:2)) + 1 for third
 
     ! Angular Variables
     real(dp), allocatable :: &
@@ -466,29 +467,19 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
 
     ! Holds the radial basis during vectorized computation.
     real*8 :: tmp_rad(max_etas), tmp_drad(3, max_etas, 2), term,&
-            tmp_dang(3, max_ezl, 3)
+              tmp_dang(3, max_ezl, 3)
     ! Intermediary variables for calculating angular basis functions
     real*8 :: mycos, myexp, myfc, myang(max_ezl), mydcos(3,3)
     real*8 :: mya(max_ezl), myb(max_ezl)
     real*8 :: mydfc(3,3), mydexp(3,3)
-    ! Get the number of upper triangular indicies
-    ut = natm*(natm-1)/2
-    ! The maximum number of cosines to calculate is n upper triangles
-    max_cos = natm * ut
-    g_num_of_els(:) = 0
-    atom_basis_index(:) = 0
-    ! set the diagonals of some arrays to 0
-    drijdx(:,:,:) = 0d0
-    natom = int(natm,kind=4)
-    rad_bas = 0.0d0
-    rad_grad = 0.0d0
-    ang_bas = 0.0d0
-    ang_grad = 0.0d0
 
+    ! Initialize local variables
+    call calc_bp_init_vars
+    ! Find the number of atoms for each element.
     call find_num_els(natom, atmnms, el_key, g_num_of_els, atom_basis_index)
-         ! generate the cosine inds. This is an array of all of the unique
-         ! angles in the system. This is the key for the threads to use
-         ! when the parallel parts start.
+    ! generate the cosine inds. This is an array of all of the unique
+    ! angles in the system. This is the key for the threads to use
+    ! when the parallel parts start.
     call get_triplets(natom, max_cos, cos_inds, num_cos)
 
    !$OMP PARALLEL &
@@ -497,75 +488,26 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
    !$OMP& private(my_type, mycos, myexp, myfc, myang) &
    !$OMP& private(term, tmp_drad, mydcos, mydfc, mydexp) &
    !$OMP& private(mya, myb, tmp_dang)
-   ! Remove from reduction and just add to critical cause we're allready doing
-   ! it...
-   !!$OMP& reduction(+:rad_bas) reduction(+:ang_bas)
-   ! Cannot reduce the below arrays because they are too big?
-   !!$OMP& reduction(+:rad_grad) reduction(+:ang_grad)
    !$OMP    DO
-           ! Calculate the r-ij vectors and distances and cutoff
-
+           ! Calculate the r-ij vectors and distances and cutoff for each atomic
+           ! pair
 calc_bonds: do x=0, ut - 1
-            call calc_ij_for_ut(i, j, x, natom)
-            call calc_rij(rij, drijdx, coords(:, i), coords(:, j), natom, i, j)
-            call calc_fc(fc, dfcdx, rij, drijdx, i, j, natom)
-            call find_bondtype(i_btype, j_btype, atmnms(i), atmnms(j), el_key(i), el_key(j))
+        call calc_ij_for_ut(i, j, x, natom)
+        call calc_rij(rij, drijdx, coords(:, i), coords(:, j), natom, i, j)
+        call calc_fc(fc, dfcdx, rij, drijdx, i, j, natom)
+        ! Find which bond type each pair belongs to
+        call find_bondtype(i_btype, j_btype, atmnms(i), atmnms(j), el_key(i), el_key(j))
 
-            !Below should be changed if the etas change significantly as it
-            !Assumes the etas are the same for all elements to save time
-            ! This cannot be reordered because we use intermediary calculation
-            ! Results for the variables
-            tmp_rad(:) = exp(-1 * eta(:,1,1) * (rij(i,j) - rs(:,1,1))**2)
-            ! Remove this later
-            myexp = tmp_rad(1)
-            ! The derivative calculation
-            do k=1, 2
-             do l=1, 3
-                tmp_drad(l,:,k) = -2 * eta(:,1,1) * (rij(i,j) - rs(:,1,1)) * fc(i, j)
-             enddo
-            enddo
-            do k=1, max_etas
-                tmp_drad(:,k,1) = tmp_drad(:,k,1) * drijdx(:, i, j) + dfcdx(:, i, j)
-                tmp_drad(:,k,2) = tmp_drad(:,k,2) * drijdx(:, j, i) + dfcdx(:, j, i)
-            enddo
-            do k=1, 2
-             do l=1, 3
-                tmp_drad(l,:,k) = tmp_drad(l,:,k) * tmp_rad(:)
-             enddo
-            enddo
-
-            tmp_rad(:) = tmp_rad(:) * fc(i,j)
-
-            if (i_btype > 0) then
-                a = rad_b_ind(i_btype, el_key(i))
-                b = a + rad_size(i_btype, el_key(i)) - 1
-                c = atom_basis_index(i)
-                e = el_key(i)
-
-                !$OMP CRITICAL
-                rad_bas(a:b, c, e) =  rad_bas(a:b, c, e) + tmp_rad(:)
-                rad_grad(:, i, a:b, c, e) = rad_grad(:, i, a:b, c, e) + tmp_drad(:, :, 1)
-                rad_grad(:, j, a:b, c, e) = rad_grad(:, j, a:b, c, e) + tmp_drad(:, :, 2)
-                !$OMP END CRITICAL
-            endif
-            !
-            ! Here i am adding the mirror RBF and corresponding gradients. Note that
-            ! The assumption is that there is a corresponding basis function between H and O
-            ! and that the gradient of that basis function is antisymmetric with it's
-            ! corresponding gradient.
-            !
-            if (j_btype > 0) then
-                a = rad_b_ind(j_btype, el_key(j))
-                b = a + rad_size(j_btype, el_key(j)) - 1
-                c = atom_basis_index(j)
-                e = el_key(j)
-                !$OMP CRITICAL
-                rad_bas(a:b, c, e) =  rad_bas(a:b, c, e) + tmp_rad(:)
-                rad_grad(:, i, a:b, c, e) = rad_grad(:, i, a:b, c, e) - tmp_drad(:, :, 1)
-                rad_grad(:, j, a:b, c, e) = rad_grad(:, j, a:b, c, e) - tmp_drad(:, :, 2)
-                !$OMP END CRITICAL
-            endif
-            enddo calc_bonds
+        ! Calculate and save the basis for the rad types if the bond exists
+        if (i_btype > 0) then
+            call calc_radbas(i, j, i_btype, el_key(i))
+            call save_radbas(i, j, i_btype, el_key(i))
+        endif
+        if (j_btype > 0) then
+            call calc_radbas(j, i, j_btype, el_key(j))
+            call save_radbas(j, i, j_btype, el_key(j))
+        endif
+    enddo calc_bonds
     !$OMP ENDDO
 !
 ! Main loop over angles
@@ -660,6 +602,89 @@ calc_ang: do x=1, num_cos
 !        rij(j, i) = rij(i, j)
 !        drijdx(:, j, i) = -drijdx(:, i, j)
 !    end subroutine calc_rij
+contains
+    subroutine calc_bp_init_vars
+        ! Get the number of upper triangular indicies
+        ut = natm*(natm-1)/2
+        ! The maximum number of cosines to calculate is n upper triangles
+        max_cos = natm * ut
+        g_num_of_els(:) = 0
+        atom_basis_index(:) = 0
+        ! set the diagonals of some arrays to 0
+        drijdx(:,:,:) = 0d0
+        natom = int(natm,kind=4)
+        rad_bas = 0.0d0
+        rad_grad = 0.0d0
+        ang_bas = 0.0d0
+        ang_grad = 0.0d0
+    end subroutine calc_bp_init_vars
+    !
+    ! This subroutine calculates the radial basis function between atoms i-j
+    ! For the i-th atom
+    !
+    ! It also calculates the derivative for the basis function.
+    subroutine calc_radbas(i, j, t, e)
+        implicit none
+        integer, intent(in) :: i, j   ! The ith and jth atoms
+        integer, intent(in) :: t      ! The bond type
+        integer, intent(in) :: e      ! The el key for the ith element
+        integer :: s, &! The radsize for the ith element
+                   l, &! counter over x, y, and z dimensions
+                   k   ! counter over etas .OR. counter over ith and jth atom
+
+        s = rad_size(t, e)
+        ! The radial basis calculation sans fc
+        tmp_rad(:s) = exp(-1 * eta(:s,t,e) * (rij(i,j) - rs(:s,t,e))**2)
+
+
+        ! The derivative calculation
+        do k=1, 2 ! Loop over the ith, jth atom
+         do l=1, 3 ! Loop over xyz
+            tmp_drad(l,:,k) = -2 * eta(:,t,e) * (rij(i,j) - rs(:,t,e)) * fc(i, j)
+         enddo
+        enddo
+        do k=1, rad_size(t, e)
+            tmp_drad(:,k,1) = tmp_drad(:,k,1) * drijdx(:, i, j) + dfcdx(:, i, j)
+            tmp_drad(:,k,2) = tmp_drad(:,k,2) * drijdx(:, j, i) + dfcdx(:, j, i)
+        enddo
+        do k=1, 2
+            do l=1, 3 ! Loop over xyz
+               tmp_drad(l,:s,k) = tmp_drad(l,:s,k) * tmp_rad(:s)
+            enddo
+        enddo
+
+        ! Now multiply by smoothing
+        tmp_rad(:s) = tmp_rad(:s) * fc(i,j)
+    end subroutine calc_radbas
+    subroutine save_radbas(i, j, t, e)
+        integer, intent(in) :: i, j, & ! The index for the ith and jth atoms
+                               t, &    ! The bond type
+                               e       ! el_key(i)
+        integer :: a, b, c, d
+        d = rad_b_ind(t, e) - 1
+        c = atom_basis_index(i)
+
+        do a=1, rad_size(t,e)
+            b = a + d
+        ! Basis
+            !$OMP ATOMIC UPDATE
+                rad_bas(b, c, e) = rad_bas(b, c, e) + tmp_rad(a)
+        ! Gradient for atom 1
+            !$OMP ATOMIC UPDATE
+                rad_grad(1, i, b, c, e) = rad_grad(1, i, b, c, e) + tmp_drad(1, a, 1)
+            !$OMP ATOMIC UPDATE
+                rad_grad(2, i, b, c, e) = rad_grad(2, i, b, c, e) + tmp_drad(2, a, 1)
+            !$OMP ATOMIC UPDATE
+                rad_grad(3, i, b, c, e) = rad_grad(3, i, b, c, e) + tmp_drad(3, a, 1)
+        ! Gradient for atom 2
+            !$OMP ATOMIC UPDATE
+                rad_grad(1, j, b, c, e) = rad_grad(1, j, b, c, e) + tmp_drad(1, a, 2)
+            !$OMP ATOMIC UPDATE
+                rad_grad(2, j, b, c, e) = rad_grad(2, j, b, c, e) + tmp_drad(2, a, 2)
+            !$OMP ATOMIC UPDATE
+                rad_grad(3, j, b, c, e) = rad_grad(3, j, b, c, e) + tmp_drad(3, a, 2)
+        enddo
+    end subroutine save_radbas
 end subroutine calc_bp
 !
 ! Calculate rij and drij
@@ -1096,32 +1121,46 @@ end subroutine setup_element_variables
 !
 ! Finish setting up the variables
 subroutine setup_post_read()
-implicit none
-! Local Variables
-integer el, type, num_angs, term
+    implicit none
+    ! Local Variables
+    integer el, type, num_angs, term
 
-! Calculate the size of the radial basis for each element
-do el=1, num_els
-    term = 0
-    do type=1, num_bonds(el)
-        term = term + rad_size(type, el)
-    enddo
-    radbas_length(el) = term
+    ! Calculate the size of the radial basis for each element
+    do el=1, num_els
+        term = 0
+        do type=1, num_bonds(el)
+            term = term + rad_size(type, el)
+        enddo
+        radbas_length(el) = term
 
-    term = 0
-    do type=1, num_angles(el)
-        term = term + ang_size(type, el)
+        term = 0
+        do type=1, num_angles(el)
+            term = term + ang_size(type, el)
+        enddo
+        angbas_length(el) = term
     enddo
-    angbas_length(el) = term
-enddo
 
-! Initialize the angle coefficients
-do el=1, num_els
-    do type=1, num_angles(el)
-        num_angs = ang_size(type,el)
-        ang_coeff(:num_angs,type,el) = 2 ** (1 - etzetlam(:num_angs, 2, type, el))
+    ! Initialize the angle coefficients
+    do el=1, num_els
+        do type=1, num_angles(el)
+            num_angs = ang_size(type,el)
+            ang_coeff(:num_angs,type,el) = 2 ** (1 - etzetlam(:num_angs, 2, type, el))
+        enddo
     enddo
-enddo
+
+    ! Initialize the basis indicies.
+    rad_b_ind(1, :) = 1
+    ang_b_ind(1, :) = 1
+    do el=1, num_els
+        do type=2, num_bonds(el)
+            rad_b_ind(type, el) = rad_b_ind(type - 1, el) + rad_size(type - 1, el)
+        enddo
+        do type=2, num_angles(el)
+            ang_b_ind(type, el) = ang_b_ind(type - 1, el) + ang_size(type - 1, el)
+        enddo
+    enddo
+
+
 return
 !100 print *, "Error, number of supplied radial basis functions does not equal ",&
 !"number in element keyword"
