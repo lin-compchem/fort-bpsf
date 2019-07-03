@@ -514,85 +514,79 @@ calc_bonds: do x=0, ut - 1
 !
     !$OMP DO
 calc_ang: do x=1, num_cos
-            i = cos_inds(1, x)
-            j = cos_inds(2, x)
-            k = cos_inds(3, x)
-            e = el_key(i)
+        i = cos_inds(1, x)
+        j = cos_inds(2, x)
+        k = cos_inds(3, x)
+        e = el_key(i)
 
-            ! Find which angle type this triplet corresponds to
-            i_type = find_angle_type(atmnms(j), atmnms(k), e)
-            if (i_type .eq. 0) cycle
+        ! Find which angle type this triplet corresponds to
+        i_type = find_angle_type(atmnms(j), atmnms(k), e)
+        if (i_type .eq. 0) cycle
 
+        nang = ang_size(i_type, e)
+        ! Here, the calculation is broken up into different sections
+        ! The basis function term can be decomposed into four functions:
+        !         FUNCTION                    VARIABLE_NAME_IN_CODE
+        !      1:   2^(1-zeta)                       NONE
+        !      2:   (1 + lambda...)                  mycos
+        !      3:   exp...                           myexp
+        !      4:    fc                              myfc
+        ! a(x)
+        ! Smoothing function and derivatives
+        call calc_angcos(rij, drijdx, coords, i, j, k, natom, mycos, mydcos)
+        call calc_angfc(i, j, k, fc, dfcdx, natom, myfc, mydfc)
+        call calc_angexp(i, j, k, rij, drijdx, natom, myexp, mydexp)
 
-            nang = ang_size(i_type, e)
+        !
+        ! Myang is the calculation for the angular basis functions
+        !
+        mya(:nang) = ( 1 + etzetlam(:nang,3,i_type,e) * mycos) ** etzetlam(:nang,2,i_type,e)
+        myb(:nang) = exp(-1 * etzetlam(:nang,1,i_type,e) * myexp)
+        myang(:nang) = ang_coeff(:nang,i_type,e) * mya(:) * myb(:) * myfc
+        !
+        ! Before we multiply by the smoothing functions, we can take
+        ! advantage of this calculation and calculate the derivatives
+        ! with respect to fc
+        !
 
-            call calc_cos(rij, drijdx, coords, i, j, k, natom, mycos, mydcos)
+        ! l is counter for looping over i, j, k
+        do l=1, 3
+           do m=1, nang
+            ee = etzetlam(m,1,i_type,e)
+            zz = etzetlam(m,2,i_type,e)
+            ll = etzetlam(m,3,i_type,e)
+            !tmp_dang(:,m,l) = mya(j) * myb(m) * mydfc(:,l)
+            ! was mya(m) ? incorrect?
+            tmp_dang(:,m,l) = mya(m) * myb(m) * mydfc(:,l)
+            tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
+                myb(m) * -2 * ee * (rij(i,j) + rij(i,k) + rij(j,k)) * mydexp(:,l)
+            tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
+                zz * ll * (1 + ll * mycos) ** (zz - 1) * mydcos(:,l)
+            tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m,i_type,e)
+           enddo
+        enddo
+        !
+        ! find the proper angular basis indicies and save the basis
+        !
+        a = ang_b_ind(i_type, el_key(i))
+        b = a + ang_size(i_type, el_key(i)) - 1
+        c = atom_basis_index(i)
+        e = el_key(i)
+        !$OMP CRITICAL
+        ang_bas(a:b, c, e) = ang_bas(a:b, c, e) + myang(:)
+        !
+        ! store the gradient
+        !
+        ang_grad(:, i, a:b, c, e) = tmp_dang(:,:,1)
+        ang_grad(:, j, a:b, c, e) = tmp_dang(:,:,2)
+        ang_grad(:, k, a:b, c, e) = tmp_dang(:,:,3)
+        !$OMP END CRITICAL
 
-            ! Smoothing function and derivatives
-            myfc = fc(i, j) * fc(i, k) * fc(j, k)
-            mydfc(:,1) = fc(j,k)*( fc(i,j)*dfcdx(:,i,k) + fc(i,k)*dfcdx(:,i,j) )
-            mydfc(:,2) = fc(i,k)*( fc(i,j)*dfcdx(:,j,k) + fc(j,k)*dfcdx(:,j,i) )
-            mydfc(:,3) = fc(i,j)*( fc(i,k)*dfcdx(:,k,j) + fc(j,k)*dfcdx(:,k,i) )
-
-            ! Begin
-            ! The gaussian parts that don't depend on eta
-            ! the myexp term is written with 2 different expressions. this is
-            ! from the 2018 paper
-            myexp = (rij(i, j) + rij(i, k) + rij(j, k))**2
-            mydexp(:,1) = drijdx(:,i,j) + drijdx(:,i,k)
-            mydexp(:,2) = drijdx(:,j,i) + drijdx(:,j,k)
-            mydexp(:,3) = drijdx(:,k,i) + drijdx(:,k,j)
-
-            !
-            ! Myang is the calculation for the angular basis functions
-            !
-            mya(:nang) = ( 1 + etzetlam(:nang,3,i_type,e) * mycos) ** etzetlam(:nang,2,i_type,e)
-            myb(:nang) = exp(-1 * etzetlam(:nang,1,i_type,e) * myexp)
-            myang(:nang) = ang_coeff(:nang,i_type,e) * mya(:) * myb(:) * myfc
-            !
-            ! Before we multiply by the smoothing functions, we can take
-            ! advantage of this calculation and calculate the derivatives
-            ! with respect to fc
-            !
-
-            ! l is counter for looping over i, j, k
-            do l=1, 3
-               do m=1, nang
-                ee = etzetlam(m,1,i_type,e)
-                zz = etzetlam(m,2,i_type,e)
-                ll = etzetlam(m,3,i_type,e)
-                !tmp_dang(:,m,l) = mya(j) * myb(m) * mydfc(:,l)
-                ! was mya(m) ? incorrect?
-                tmp_dang(:,m,l) = mya(m) * myb(m) * mydfc(:,l)
-                tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
-                    myb(m) * -2 * ee * (rij(i,j) + rij(i,k) + rij(j,k)) * mydexp(:,l)
-                tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
-                    zz * ll * (1 + ll * mycos) ** (zz - 1) * mydcos(:,l)
-                tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m,i_type,e)
-               enddo
-            enddo
-            !
-            ! find the proper angular basis indicies and save the basis
-            !
-            a = ang_b_ind(i_type, el_key(i))
-            b = a + ang_size(i_type, el_key(i)) - 1
-            c = atom_basis_index(i)
-            e = el_key(i)
-            !$OMP CRITICAL
-            ang_bas(a:b, c, e) = ang_bas(a:b, c, e) + myang(:)
-            !
-            ! store the gradient
-            !
-            ang_grad(:, i, a:b, c, e) = tmp_dang(:,:,1)
-            ang_grad(:, j, a:b, c, e) = tmp_dang(:,:,2)
-            ang_grad(:, k, a:b, c, e) = tmp_dang(:,:,3)
-            !$OMP END CRITICAL
-
-        enddo calc_ang
+    enddo calc_ang
 !$OMP   ENDDO
 !$OMP END PARALLEL
-        continue
-        return
+    continue
+    return
 !contains
 !    subroutine calc_rij
 !        ! Distances
@@ -688,6 +682,38 @@ contains
         enddo
     end subroutine save_radbas
 end subroutine calc_bp
+
+subroutine calc_angfc(i, j, k, fc, dfcdx, natoms, myfc, mydfc)
+    implicit none
+    integer, intent(in) :: i, j, k, natoms ! The indices for ith jth and kth atom
+    real(kind=8), intent(in):: &
+        fc(natoms, natoms),& ! The matrix of smoothing functions for each atom
+        dfcdx(3, natoms, natoms) ! The derivative of the above matrix wrt position
+    real(kind=8), intent(out) :: myfc, mydfc(3,3) ! The final fc term and dfc matrix. [xyz,atm123]
+
+
+
+    myfc = fc(i, j) * fc(i, k) * fc(j, k)
+    mydfc(:,1) = fc(j,k)*( fc(i,j)*dfcdx(:,i,k) + fc(i,k)*dfcdx(:,i,j) )
+    mydfc(:,2) = fc(i,k)*( fc(i,j)*dfcdx(:,j,k) + fc(j,k)*dfcdx(:,j,i) )
+    mydfc(:,3) = fc(i,j)*( fc(i,k)*dfcdx(:,k,j) + fc(j,k)*dfcdx(:,k,i) )
+end subroutine calc_angfc
+subroutine calc_angexp(i, j, k, rij, drijdx, natoms, myexp, mydexp)
+    ! Begin
+    ! The gaussian parts that don't depend on eta
+    ! the myexp term is written with 2 different expressions. this is
+    ! from the 2018 paper
+    implicit none
+    integer, intent(in) :: i, j, k, natoms ! The indices for ith jth and kth atom
+    real(kind=8), intent(in):: &
+        rij(natoms, natoms),& ! The matrix of smoothing functions for each atom
+        drijdx(3, natoms, natoms) ! The derivative of the above matrix wrt position
+    real(kind=8), intent(out) :: myexp, mydexp(3,3) ! The final fc term and dfc matrix. [xyz,atm123]
+    myexp = (rij(i, j) + rij(i, k) + rij(j, k))**2
+    mydexp(:,1) = drijdx(:,i,j) + drijdx(:,i,k)
+    mydexp(:,2) = drijdx(:,j,i) + drijdx(:,j,k)
+    mydexp(:,3) = drijdx(:,k,i) + drijdx(:,k,j)
+end subroutine calc_angexp
 !
 ! Calculate rij and drij
 ! This is the pair wise distance term and its derivative
@@ -710,7 +736,7 @@ subroutine calc_rij(rij, drijdx, icoords, jcoords, natoms, i, j)
 end subroutine calc_rij
 !
 ! Calculate the cosine term and its derivative for the angular basis functions
-subroutine calc_cos(rij, drijdx, coords, i, j, k, natom, mycos, mydcos)
+subroutine calc_angcos(rij, drijdx, coords, i, j, k, natom, mycos, mydcos)
     implicit none
     integer, intent(in) :: natom, i, j, k
     real(kind=8), intent(in) :: rij(natom, natom), drijdx(3, natom, natom), &
@@ -735,7 +761,7 @@ subroutine calc_cos(rij, drijdx, coords, i, j, k, natom, mycos, mydcos)
 !            mydcos(:,1) = term * (mydcos(:,1) + 2*coords(:,i,g) - coords(:,j,g) - coords(:,k,g))
     ! Actually, the derivative is equal and opposite to the sum of dj and dk
     mydcos(:,1) = -mydcos(:,2)-mydcos(:,3)
-end subroutine calc_cos
+end subroutine calc_angcos
 !
 ! Calculate fc
 ! This is the cutoff function and its derivative
