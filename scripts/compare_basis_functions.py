@@ -69,6 +69,11 @@ def check2d(ifi, rfi, key, i_shape, verbose=False):
             fail = False
             if np.isclose(ifi[key][j,k], rfi[key][j,k]):
                 equal += 1
+                if verbose > 2:
+                    print("PASS for key {} and indices {}   {}".format(key, j,
+                                                                       k))
+                    print("ref: {}        ifi: {}".format(rfi[key][j,k],
+                        ifi[key][j,k]))
             elif ifi[key][j,k] > rfi[key][j,k]:
                 big += 1
                 fail = True
@@ -76,8 +81,11 @@ def check2d(ifi, rfi, key, i_shape, verbose=False):
                 small += 1
                 fail = True
             if fail and verbose:
-                print("For key {}, following inds failed: {}     {}".format(
+                print("FAIL For key {}, following inds failed: {}     {}".format(
                     key, j, k))
+                if verbose > 1:
+                    print("ref: {}        ifi: {}".format(rfi[key][j,k],
+                        ifi[key][j,k]))
     return equal, big, small
 
 def check4d(ifi, rfi, key, i_shape, verbose=False):
@@ -89,6 +97,11 @@ def check4d(ifi, rfi, key, i_shape, verbose=False):
          fail = False 
          if np.isclose(ifi[key][j,k], rfi[key][j,k]).all():
              equal += 1
+             if verbose > 2:
+                 print("PASS for key {} and indices {}   {}".format(key, j,
+                                                                    k))
+                 print("ref: {}        ifi: {}".format(rfi[key][j,k],
+                     ifi[key][j,k]))
          elif (ifi[key][j,k] > rfi[key][j,k]).any():
              big += 1
              fail = True  
@@ -96,8 +109,13 @@ def check4d(ifi, rfi, key, i_shape, verbose=False):
              small += 1
              fail = True  
          if fail and verbose:
-             print("For key {}, following inds failed: {}     {}".format(
+             print("FAIL For key {}, following inds failed: {}     {}".format(
                  key, j, k))
+             if verbose > 1:
+                 for rr , ii in zip(rfi[key][j,k], ifi[key][j,k]):
+                     print("ref: {}        ifi: {}".format(rr, ii))
+                 #print("ref: {}        ifi: {}".format(rfi[key][j,k],
+                 #    ifi[key][j,k]))
     return equal, big, small
 def main():
     arg_vals = None
@@ -144,7 +162,7 @@ def main():
         if 'gradient' in key:
             equal, big, small = check4d(ifi, rfi, key, i_shape, args.verbose)
         else:
-            equal, big, small = check2d(ifi, rfi, key, i_shape)
+            equal, big, small = check2d(ifi, rfi, key, i_shape, args.verbose)
         print("SUMMARY FOR KEY %s" % key)
         print("Entries equal: %d" % equal)
         print("Entries larger: %d" % big)

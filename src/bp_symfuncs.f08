@@ -445,8 +445,8 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
     ! Intermediate vars for angular funcitons
     real(kind=8) :: ee, zz, ll
     integer :: nang
-    ! atom types for the ith and jth atom
-    integer i_btype, j_btype, my_type
+    ! bond/angle types for the ith and jth atom
+    integer i_type, j_type
 
     ! Smoothing function array. fc(i,j) = fc(j,i) uses cosine func.
     !  dfcdr == dfc(rij)/dRij
@@ -483,9 +483,9 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
     call get_triplets(natom, max_cos, cos_inds, num_cos)
 
    !$OMP PARALLEL &
-   !$OMP& private(i_btype, j_btype, tmp_rad) &
+   !$OMP& private(i_type, j_type, tmp_rad) &
    !$OMP& private(x, i, j, k, a, b, c, e, m, ee, zz, ll) &
-   !$OMP& private(my_type, mycos, myexp, myfc, myang) &
+   !$OMP& private(mycos, myexp, myfc, myang) &
    !$OMP& private(term, tmp_drad, mydcos, mydfc, mydexp) &
    !$OMP& private(mya, myb, tmp_dang)
    !$OMP    DO
@@ -496,16 +496,16 @@ calc_bonds: do x=0, ut - 1
         call calc_rij(rij, drijdx, coords(:, i), coords(:, j), natom, i, j)
         call calc_fc(fc, dfcdx, rij, drijdx, i, j, natom)
         ! Find which bond type each pair belongs to
-        call find_bondtype(i_btype, j_btype, atmnms(i), atmnms(j), el_key(i), el_key(j))
+        call find_bondtype(i_type, j_type, atmnms(i), atmnms(j), el_key(i), el_key(j))
 
         ! Calculate and save the basis for the rad types if the bond exists
-        if (i_btype > 0) then
-            call calc_radbas(i, j, i_btype, el_key(i))
-            call save_radbas(i, j, i_btype, el_key(i))
+        if (i_type > 0) then
+            call calc_radbas(i, j, i_type, el_key(i))
+            call save_radbas(i, j, i_type, el_key(i))
         endif
-        if (j_btype > 0) then
-            call calc_radbas(j, i, j_btype, el_key(j))
-            call save_radbas(j, i, j_btype, el_key(j))
+        if (j_type > 0) then
+            call calc_radbas(j, i, j_type, el_key(j))
+            call save_radbas(j, i, j_type, el_key(j))
         endif
     enddo calc_bonds
     !$OMP ENDDO
@@ -520,9 +520,11 @@ calc_ang: do x=1, num_cos
             e = el_key(i)
 
             ! Find which angle type this triplet corresponds to
-            my_type = find_angle_type(atmnms(j), atmnms(k), el_key(i))
-            nang = ang_size(my_type, e)
-            if (my_type .eq. 0) cycle
+            i_type = find_angle_type(atmnms(j), atmnms(k), e)
+            if (i_type .eq. 0) cycle
+
+
+            nang = ang_size(i_type, e)
 
             call calc_cos(rij, drijdx, coords, i, j, k, natom, mycos, mydcos)
 
@@ -544,9 +546,9 @@ calc_ang: do x=1, num_cos
             !
             ! Myang is the calculation for the angular basis functions
             !
-            mya(:nang) = ( 1 + etzetlam(:nang,3,my_type,e) * mycos) ** etzetlam(:nang,2,my_type,e)
-            myb(:nang) = exp(-1 * etzetlam(:nang,1,my_type,e) * myexp)
-            myang(:nang) = ang_coeff(:nang,my_type,e) * mya(:) * myb(:) * myfc
+            mya(:nang) = ( 1 + etzetlam(:nang,3,i_type,e) * mycos) ** etzetlam(:nang,2,i_type,e)
+            myb(:nang) = exp(-1 * etzetlam(:nang,1,i_type,e) * myexp)
+            myang(:nang) = ang_coeff(:nang,i_type,e) * mya(:) * myb(:) * myfc
             !
             ! Before we multiply by the smoothing functions, we can take
             ! advantage of this calculation and calculate the derivatives
@@ -556,9 +558,9 @@ calc_ang: do x=1, num_cos
             ! l is counter for looping over i, j, k
             do l=1, 3
                do m=1, nang
-                ee = etzetlam(m,1,my_type,e)
-                zz = etzetlam(m,2,my_type,e)
-                ll = etzetlam(m,3,my_type,e)
+                ee = etzetlam(m,1,i_type,e)
+                zz = etzetlam(m,2,i_type,e)
+                ll = etzetlam(m,3,i_type,e)
                 !tmp_dang(:,m,l) = mya(j) * myb(m) * mydfc(:,l)
                 ! was mya(m) ? incorrect?
                 tmp_dang(:,m,l) = mya(m) * myb(m) * mydfc(:,l)
@@ -566,14 +568,14 @@ calc_ang: do x=1, num_cos
                     myb(m) * -2 * ee * (rij(i,j) + rij(i,k) + rij(j,k)) * mydexp(:,l)
                 tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
                     zz * ll * (1 + ll * mycos) ** (zz - 1) * mydcos(:,l)
-                tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m,my_type,e)
+                tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m,i_type,e)
                enddo
             enddo
             !
             ! find the proper angular basis indicies and save the basis
             !
-            a = ang_b_ind(my_type, el_key(i))
-            b = a + ang_size(my_type, el_key(i)) - 1
+            a = ang_b_ind(i_type, el_key(i))
+            b = a + ang_size(i_type, el_key(i)) - 1
             c = atom_basis_index(i)
             e = el_key(i)
             !$OMP CRITICAL
