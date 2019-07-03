@@ -439,12 +439,9 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
     ! These also correspond to number of triplets, maximum number of triplets
     !
     ! Various counters
-    integer a, b, c, e
-    integer i, j, k, l, m
+    integer i, j, k
     integer x
-    ! Intermediate vars for angular funcitons
-    real(kind=8) :: ee, zz, ll
-    integer :: nang
+
     ! bond/angle types for the ith and jth atom
     integer i_type, j_type
 
@@ -466,12 +463,9 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
     integer :: natom
 
     ! Holds the radial basis during vectorized computation.
-    real*8 :: tmp_rad(max_etas), tmp_drad(3, max_etas, 2), term,&
-              tmp_dang(3, max_ezl, 3)
-    ! Intermediary variables for calculating angular basis functions
-    real*8 :: mycos, myexp, myfc, myang(max_ezl), mydcos(3,3)
-    real*8 :: mya(max_ezl), myb(max_ezl)
-    real*8 :: mydfc(3,3), mydexp(3,3)
+    real*8 :: tmp_rad(max_etas), tmp_drad(3, max_etas, 2),&
+              tmp_dang(3, max_ezl, 3), myang(max_ezl)
+
 
     ! Initialize local variables
     call calc_bp_init_vars
@@ -483,11 +477,10 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
     call get_triplets(natom, max_cos, cos_inds, num_cos)
 
    !$OMP PARALLEL &
-   !$OMP& private(i_type, j_type, tmp_rad) &
-   !$OMP& private(x, i, j, k, a, b, c, e, m, ee, zz, ll) &
-   !$OMP& private(mycos, myexp, myfc, myang) &
-   !$OMP& private(term, tmp_drad, mydcos, mydfc, mydexp) &
-   !$OMP& private(mya, myb, tmp_dang)
+   !$OMP& private(i_type, j_type) &
+   !$OMP& private(x, i, j, k, m) &
+   !$OMP& private(myang, tmp_dang) &
+   !$OMP& private(tmp_rad, tmp_drad)
    !$OMP    DO
            ! Calculate the r-ij vectors and distances and cutoff for each atomic
            ! pair
@@ -500,12 +493,14 @@ calc_bonds: do x=0, ut - 1
 
         ! Calculate and save the basis for the rad types if the bond exists
         if (i_type > 0) then
-            call calc_radbas(i, j, i_type, el_key(i))
-            call save_radbas(i, j, i_type, el_key(i))
+            call calc_radbas(i, j, i_type, el_key(i), rij, drijdx, fc, dfcdx, tmp_rad, tmp_drad, natom)
+            call save_radbas(i, j, i_type, el_key(i), atom_basis_index(i), tmp_rad, tmp_drad, rad_bas, rad_grad, max_atom)
         endif
         if (j_type > 0) then
-            call calc_radbas(j, i, j_type, el_key(j))
-            call save_radbas(j, i, j_type, el_key(j))
+            call calc_radbas(j, i, j_type, el_key(j), rij, drijdx, fc, dfcdx,&
+                             tmp_rad, tmp_drad, natom)
+            call save_radbas(j, i, j_type, el_key(j), atom_basis_index(j),&
+                             tmp_rad, tmp_drad, rad_bas, rad_grad, max_atom)
         endif
     enddo calc_bonds
     !$OMP ENDDO
@@ -517,70 +512,16 @@ calc_ang: do x=1, num_cos
         i = cos_inds(1, x)
         j = cos_inds(2, x)
         k = cos_inds(3, x)
-        e = el_key(i)
 
         ! Find which angle type this triplet corresponds to
-        i_type = find_angle_type(atmnms(j), atmnms(k), e)
+        i_type = find_angle_type(atmnms(j), atmnms(k), el_key(i))
         if (i_type .eq. 0) cycle
 
-        nang = ang_size(i_type, e)
-        ! Here, the calculation is broken up into different sections
-        ! The basis function term can be decomposed into four functions:
-        !         FUNCTION                    VARIABLE_NAME_IN_CODE
-        !      1:   2^(1-zeta)                       NONE
-        !      2:   (1 + lambda...)                  mycos
-        !      3:   exp...                           myexp
-        !      4:    fc                              myfc
-        ! a(x)
-        ! Smoothing function and derivatives
-        call calc_angcos(rij, drijdx, coords, i, j, k, natom, mycos, mydcos)
-        call calc_angfc(i, j, k, fc, dfcdx, natom, myfc, mydfc)
-        call calc_angexp(i, j, k, rij, drijdx, natom, myexp, mydexp)
-
-        !
-        ! Myang is the calculation for the angular basis functions
-        !
-        mya(:nang) = ( 1 + etzetlam(:nang,3,i_type,e) * mycos) ** etzetlam(:nang,2,i_type,e)
-        myb(:nang) = exp(-1 * etzetlam(:nang,1,i_type,e) * myexp)
-        myang(:nang) = ang_coeff(:nang,i_type,e) * mya(:) * myb(:) * myfc
-        !
-        ! Before we multiply by the smoothing functions, we can take
-        ! advantage of this calculation and calculate the derivatives
-        ! with respect to fc
-        !
-
-        ! l is counter for looping over i, j, k
-        do l=1, 3
-           do m=1, nang
-            ee = etzetlam(m,1,i_type,e)
-            zz = etzetlam(m,2,i_type,e)
-            ll = etzetlam(m,3,i_type,e)
-            !tmp_dang(:,m,l) = mya(j) * myb(m) * mydfc(:,l)
-            ! was mya(m) ? incorrect?
-            tmp_dang(:,m,l) = mya(m) * myb(m) * mydfc(:,l)
-            tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
-                myb(m) * -2 * ee * (rij(i,j) + rij(i,k) + rij(j,k)) * mydexp(:,l)
-            tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
-                zz * ll * (1 + ll * mycos) ** (zz - 1) * mydcos(:,l)
-            tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m,i_type,e)
-           enddo
-        enddo
-        !
-        ! find the proper angular basis indicies and save the basis
-        !
-        a = ang_b_ind(i_type, el_key(i))
-        b = a + ang_size(i_type, el_key(i)) - 1
-        c = atom_basis_index(i)
-        e = el_key(i)
-        !$OMP CRITICAL
-        ang_bas(a:b, c, e) = ang_bas(a:b, c, e) + myang(:)
-        !
-        ! store the gradient
-        !
-        ang_grad(:, i, a:b, c, e) = tmp_dang(:,:,1)
-        ang_grad(:, j, a:b, c, e) = tmp_dang(:,:,2)
-        ang_grad(:, k, a:b, c, e) = tmp_dang(:,:,3)
-        !$OMP END CRITICAL
+        ! Calculate the basis for this angle
+        call calc_angbas(i, j, k, i_type, rij, drijdx, coords, natom, fc, &
+                         dfcdx, myang, tmp_dang, el_key(i))
+        call save_angbas(i, j, k, el_key(i), i_type, atom_basis_index(i), myang, tmp_dang,&
+                         ang_bas, ang_grad, max_atom)
 
     enddo calc_ang
 !$OMP   ENDDO
@@ -614,75 +555,44 @@ contains
         ang_bas = 0.0d0
         ang_grad = 0.0d0
     end subroutine calc_bp_init_vars
-    !
-    ! This subroutine calculates the radial basis function between atoms i-j
-    ! For the i-th atom
-    !
-    ! It also calculates the derivative for the basis function.
-    subroutine calc_radbas(i, j, t, e)
-        implicit none
-        integer, intent(in) :: i, j   ! The ith and jth atoms
-        integer, intent(in) :: t      ! The bond type
-        integer, intent(in) :: e      ! The el key for the ith element
-        integer :: s, &! The radsize for the ith element
-                   l, &! counter over x, y, and z dimensions
-                   k   ! counter over etas .OR. counter over ith and jth atom
 
-        s = rad_size(t, e)
-        ! The radial basis calculation sans fc
-        tmp_rad(:s) = exp(-1 * eta(:s,t,e) * (rij(i,j) - rs(:s,t,e))**2)
-
-
-        ! The derivative calculation
-        do k=1, 2 ! Loop over the ith, jth atom
-         do l=1, 3 ! Loop over xyz
-            tmp_drad(l,:,k) = -2 * eta(:,t,e) * (rij(i,j) - rs(:,t,e)) * fc(i, j)
-         enddo
-        enddo
-        do k=1, rad_size(t, e)
-            tmp_drad(:,k,1) = tmp_drad(:,k,1) * drijdx(:, i, j) + dfcdx(:, i, j)
-            tmp_drad(:,k,2) = tmp_drad(:,k,2) * drijdx(:, j, i) + dfcdx(:, j, i)
-        enddo
-        do k=1, 2
-            do l=1, 3 ! Loop over xyz
-               tmp_drad(l,:s,k) = tmp_drad(l,:s,k) * tmp_rad(:s)
-            enddo
-        enddo
-
-        ! Now multiply by smoothing
-        tmp_rad(:s) = tmp_rad(:s) * fc(i,j)
-    end subroutine calc_radbas
-    subroutine save_radbas(i, j, t, e)
-        integer, intent(in) :: i, j, & ! The index for the ith and jth atoms
-                               t, &    ! The bond type
-                               e       ! el_key(i)
-        integer :: a, b, c, d
-        d = rad_b_ind(t, e) - 1
-        c = atom_basis_index(i)
-
-        do a=1, rad_size(t,e)
-            b = a + d
-        ! Basis
-            !$OMP ATOMIC UPDATE
-                rad_bas(b, c, e) = rad_bas(b, c, e) + tmp_rad(a)
-        ! Gradient for atom 1
-            !$OMP ATOMIC UPDATE
-                rad_grad(1, i, b, c, e) = rad_grad(1, i, b, c, e) + tmp_drad(1, a, 1)
-            !$OMP ATOMIC UPDATE
-                rad_grad(2, i, b, c, e) = rad_grad(2, i, b, c, e) + tmp_drad(2, a, 1)
-            !$OMP ATOMIC UPDATE
-                rad_grad(3, i, b, c, e) = rad_grad(3, i, b, c, e) + tmp_drad(3, a, 1)
-        ! Gradient for atom 2
-            !$OMP ATOMIC UPDATE
-                rad_grad(1, j, b, c, e) = rad_grad(1, j, b, c, e) + tmp_drad(1, a, 2)
-            !$OMP ATOMIC UPDATE
-                rad_grad(2, j, b, c, e) = rad_grad(2, j, b, c, e) + tmp_drad(2, a, 2)
-            !$OMP ATOMIC UPDATE
-                rad_grad(3, j, b, c, e) = rad_grad(3, j, b, c, e) + tmp_drad(3, a, 2)
-        enddo
-    end subroutine save_radbas
 end subroutine calc_bp
-
+subroutine save_angbas(i, j, k, e, t, c, myang, tmp_dang, ang_bas, ang_grad, max_atom)
+    !
+    ! I/O Variables
+    !
+    integer, intent(in) :: i, j, k, & ! The index for the ith and jth atoms
+                           t, &       ! The bond type
+                           e, &       ! el_key(i)
+                           c, &       ! atom_basis_index(i)
+                           max_atom   ! Size of basis arrays
+    real(kind=8), intent(in) :: myang(max_ezl), tmp_dang(3, max_ezl, 3)
+    real(kind=8), intent(inout) :: ang_bas(max_bas, max_atom, num_els)
+    real(kind=8), intent(inout) :: ang_grad(3, max_atom, max_bas, max_atom, num_els)
+    !
+    ! Local Variables
+    !
+    integer :: a, b, d, l
+    d = ang_b_ind(t, e) - 1
+    do a=1, ang_size(t,e)
+        b = a + d
+        !$OMP ATOMIC UPDATE
+        ang_bas(b, c, e) = ang_bas(b, c, e) + myang(a)
+        do l=1, 3
+        !
+        ! store the gradient
+        !
+            !$OMP ATOMIC UPDATE
+            ang_grad(l, i, b, c, e) = tmp_dang(l,a,1)
+            !$OMP ATOMIC UPDATE
+            ang_grad(l, j, b, c, e) = tmp_dang(l,a,2)
+            !$OMP ATOMIC UPDATE
+            ang_grad(l, k, b, c, e) = tmp_dang(l,a,3)
+        enddo
+    enddo
+end subroutine save_angbas
+!
+! Calculate the smoothing function terms for the angular basis set calculations
 subroutine calc_angfc(i, j, k, fc, dfcdx, natoms, myfc, mydfc)
     implicit none
     integer, intent(in) :: i, j, k, natoms ! The indices for ith jth and kth atom
@@ -715,6 +625,46 @@ subroutine calc_angexp(i, j, k, rij, drijdx, natoms, myexp, mydexp)
     mydexp(:,3) = drijdx(:,k,i) + drijdx(:,k,j)
 end subroutine calc_angexp
 !
+! Save the temporary radial basis values to the main basis array
+subroutine save_radbas(i, j, t, e, c, tmp_rad, tmp_drad, rad_bas, rad_grad, max_atom)
+    !
+    ! I/O Variables
+    !
+    integer, intent(in) :: i, j, & ! The index for the ith and jth atoms
+                           t, &    ! The bond type
+                           e, &    ! el_key(i)
+                           c, &    ! atom_basis_index(i)
+                           max_atom ! Size of basis arrays
+    real(kind=8), intent(in) :: tmp_rad(max_etas), tmp_drad(3, max_etas, 2)
+    real(kind=8), intent(inout) :: rad_bas(max_bas, max_atom, num_els)
+    real(kind=8), intent(inout) :: rad_grad(3, max_atom, max_bas, max_atom, num_els)
+    !
+    ! Local Variables
+    !
+    integer :: a, b, d
+    d = rad_b_ind(t, e) - 1
+    do a=1, rad_size(t,e)
+        b = a + d
+    ! Basis
+        !$OMP ATOMIC UPDATE
+            rad_bas(b, c, e) = rad_bas(b, c, e) + tmp_rad(a)
+    ! Gradient for atom 1
+        !$OMP ATOMIC UPDATE
+            rad_grad(1, i, b, c, e) = rad_grad(1, i, b, c, e) + tmp_drad(1, a, 1)
+        !$OMP ATOMIC UPDATE
+            rad_grad(2, i, b, c, e) = rad_grad(2, i, b, c, e) + tmp_drad(2, a, 1)
+        !$OMP ATOMIC UPDATE
+            rad_grad(3, i, b, c, e) = rad_grad(3, i, b, c, e) + tmp_drad(3, a, 1)
+    ! Gradient for atom 2
+        !$OMP ATOMIC UPDATE
+            rad_grad(1, j, b, c, e) = rad_grad(1, j, b, c, e) + tmp_drad(1, a, 2)
+        !$OMP ATOMIC UPDATE
+            rad_grad(2, j, b, c, e) = rad_grad(2, j, b, c, e) + tmp_drad(2, a, 2)
+        !$OMP ATOMIC UPDATE
+            rad_grad(3, j, b, c, e) = rad_grad(3, j, b, c, e) + tmp_drad(3, a, 2)
+    enddo
+end subroutine save_radbas
+!
 ! Calculate rij and drij
 ! This is the pair wise distance term and its derivative
 subroutine calc_rij(rij, drijdx, icoords, jcoords, natoms, i, j)
@@ -734,6 +684,139 @@ subroutine calc_rij(rij, drijdx, icoords, jcoords, natoms, i, j)
     rij(j, i) = rij(i, j)
     drijdx(:, j, i) = -drijdx(:, i, j)
 end subroutine calc_rij
+!
+! This subroutine calculates the radial basis function between atoms i-j
+! For the i-th atom
+!
+! It also calculates the derivative for the basis function.
+subroutine calc_radbas(i, j, t, e, rij, drijdx, fc, dfcdx, tmp_rad, tmp_drad,&
+                       natoms)
+    implicit none
+    !
+    ! IO Vars
+    !
+    integer, intent(in) :: i, j   ! The ith and jth atoms
+    integer, intent(in) :: t      ! The bond type
+    integer, intent(in) :: e      ! The el key for the ith element
+    integer, intent(in) :: natoms ! Number of atoms for matrix dimensions
+    real(kind=8), intent(in):: &
+        rij(natoms, natoms),& ! The matrix of smoothing functions for each atom
+        drijdx(3, natoms, natoms) ! The derivative of the above matrix wrt position
+    real(kind=8), intent(in):: &
+        fc(natoms, natoms),& ! The matrix of smoothing functions for each atom
+        dfcdx(3, natoms, natoms) ! The derivative of the above matrix wrt position
+
+    real(kind=8), intent(inout) :: tmp_rad(max_etas), tmp_drad(3, max_etas, 2)
+    !
+    ! Local Vars
+    !
+    integer :: s, &! The radsize for the ith element
+               l, &! counter over x, y, and z dimensions
+               k   ! counter over etas .OR. counter over ith and jth atom
+
+    s = rad_size(t, e)
+    ! The radial basis calculation sans fc
+    tmp_rad(:s) = exp(-1 * eta(:s,t,e) * (rij(i,j) - rs(:s,t,e))**2)
+
+
+    ! The derivative calculation
+    do k=1, 2 ! Loop over the ith, jth atom
+     do l=1, 3 ! Loop over xyz
+        tmp_drad(l,:,k) = -2 * eta(:,t,e) * (rij(i,j) - rs(:,t,e)) * fc(i, j)
+     enddo
+    enddo
+    do k=1, rad_size(t, e)
+        tmp_drad(:,k,1) = tmp_drad(:,k,1) * drijdx(:, i, j) + dfcdx(:, i, j)
+        tmp_drad(:,k,2) = tmp_drad(:,k,2) * drijdx(:, j, i) + dfcdx(:, j, i)
+    enddo
+    do k=1, 2
+        do l=1, 3 ! Loop over xyz
+           tmp_drad(l,:s,k) = tmp_drad(l,:s,k) * tmp_rad(:s)
+        enddo
+    enddo
+
+    ! Now multiply by smoothing
+    tmp_rad(:s) = tmp_rad(:s) * fc(i,j)
+end subroutine calc_radbas
+!
+!  Calculate the angular basis functions and their derviatves
+!
+! Here, basis function term is decomposed into four functions:
+!         FUNCTION                    VARIABLE_NAME_IN_CODE     PREREQ_VARS
+!      1:   2^(1-zeta)                       ang_coeff       calculated in setup
+!      2:   (1 + lambda...)                  mya                   mycos
+!      3:   exp...                           myb                   myexp
+!      4:    fc                              myfc
+!
+!  The derivatives are broken up similarily using the prodcut rule:
+!
+!      dadx * b * fc
+!      dbdx * a * fc
+!     dfcdx * a * b
+!
+!  We can then multiply through by the angle coefficient at the end
+! Smoothing function and derivatives
+subroutine calc_angbas(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
+                       myang, tmp_dang, e)
+    implicit none
+    !
+    ! I/O Variables
+    !
+    integer, intent(in) :: i, j, k, & ! The indices for ith jth and kth atom
+                            natoms, & ! The total number of atoms in the system
+                            type,&    ! Integer for angle type
+                            e         ! el_key(i)
+    real(kind=8), intent(in):: &
+        rij(natoms, natoms),& ! The matrix of smoothing functions for each atom
+        drijdx(3, natoms, natoms) ! The derivative of the above matrix wrt position
+    real(kind=8), intent(in):: &
+        fc(natoms, natoms),& ! The matrix of smoothing functions for each atom
+        dfcdx(3, natoms, natoms),& ! The derivative of the above matrix wrt position
+        coords(3, natoms)
+    real(kind=8), intent(out) :: &
+        myang(max_ezl), tmp_dang(3, max_ezl, 3)
+    !
+    ! Local Variables
+    !
+    ! Intermediate vars for angular funcitons
+    real(kind=8) :: ee, zz, ll ! eta, zeta, lambda term for an angle
+    integer nang ! Number of angles for this type
+    ! Intermediary variables for calculating angular basis functions
+    real*8 :: mycos, myexp, myfc,  mydcos(3,3)
+    real*8 :: mya(max_ezl), myb(max_ezl)
+    real*8 :: mydfc(3,3), mydexp(3,3)
+    integer l, m
+    nang = ang_size(type, e)
+
+    !
+    ! Calculate the prerequisite terms
+    !
+    call calc_angcos(rij, drijdx, coords, i, j, k, natoms, mycos, mydcos)
+    call calc_angfc(i, j, k, fc, dfcdx, natoms, myfc, mydfc)
+    call calc_angexp(i, j, k, rij, drijdx, natoms, myexp, mydexp)
+    !
+    ! Calculation for the angular basis functions
+    !
+    mya(:nang) = ( 1 + etzetlam(:nang,3,type,e) * mycos) ** etzetlam(:nang,2,type,e)
+    myb(:nang) = exp(-1 * etzetlam(:nang,1,type,e) * myexp)
+    myang(:nang) = ang_coeff(:nang,type,e) * mya(:) * myb(:) * myfc
+    !
+    ! Calculate the derivatives with respect to fc
+    !
+    do l=1, 3           ! l is counter for looping over i, j, k
+       do m=1, nang     ! m is counter for looping over eta zeta lam tuples
+        ee = etzetlam(m,1,type,e)
+        zz = etzetlam(m,2,type,e)
+        ll = etzetlam(m,3,type,e)
+        tmp_dang(:,m,l) = mya(m) * myb(m) * mydfc(:,l)
+        tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
+            myb(m) * -2 * ee * (rij(i,j) + rij(i,k) + rij(j,k)) * mydexp(:,l)
+        tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
+            zz * ll * (1 + ll * mycos) ** (zz - 1) * mydcos(:,l)
+        tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m,type,e)
+       enddo
+    enddo
+end subroutine calc_angbas
 !
 ! Calculate the cosine term and its derivative for the angular basis functions
 subroutine calc_angcos(rij, drijdx, coords, i, j, k, natom, mycos, mydcos)

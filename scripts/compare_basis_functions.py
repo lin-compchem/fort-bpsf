@@ -113,6 +113,8 @@ def check4d(ifi, rfi, key, i_shape, verbose=False):
                  key, j, k))
              if verbose > 1:
                  for rr , ii in zip(rfi[key][j,k], ifi[key][j,k]):
+                     if (rr == np.zeros(3)).all() and (ii == np.zeros(3)).all():
+                         continue
                      print("ref: {}        ifi: {}".format(rr, ii))
                  #print("ref: {}        ifi: {}".format(rfi[key][j,k],
                  #    ifi[key][j,k]))
@@ -120,12 +122,16 @@ def check4d(ifi, rfi, key, i_shape, verbose=False):
 def main():
     arg_vals = None
     args = get_args(arg_vals)
-    keys2check = ['h_rad_cartesian_gradient',
-                  'o_rad_cartesian_gradient',
-                  'h_radial_sym_funcs',
-                  'h_angular_sym_funcs',
-                  'o_radial_sym_funcs',
-                  'o_angular_sym_funcs']
+    keys2check = [
+            'h_radial_sym_funcs',
+            'h_angular_sym_funcs',
+            'o_radial_sym_funcs',
+            'o_angular_sym_funcs'
+            'h_rad_cartesian_gradient',
+            'o_rad_cartesian_gradient',
+            'h_ang_cartesian_gradient',
+            'o_ang_cartesian_gradient',
+            ]
     ifi = h5.File(args.input, 'r')
     rfi = h5.File(args.reference, 'r')
     #
