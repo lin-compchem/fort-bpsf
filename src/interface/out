@@ -1,0 +1,16 @@
+/tmp/ccA3PRqz.o: In function `rapidjson::GenericReader<rapidjson::UTF8<char>, rapidjson::UTF8<char>, rapidjson::CrtAllocator>::NumberStream<rapidjson::GenericStringStream<rapidjson::UTF8<char> >, false, false>::~NumberStream()':
+/usr/include/rapidjson/reader.h:1133: multiple definition of `JSON_Message::setupDocument(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)'
+/tmp/ccd0bKbs.o:/home/aduster/eclipse-workspace/fort-bpsf/src/tmp/tfs_json_messages.cpp:37: first defined here
+/tmp/ccA3PRqz.o: In function `JSON_Message::initialize(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)':
+/usr/include/rapidjson/reader.h:1158: multiple definition of `JSON_Message::initialize(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)'
+/tmp/ccd0bKbs.o:/home/aduster/eclipse-workspace/fort-bpsf/src/tmp/tfs_json_messages.cpp:47: first defined here
+/tmp/ccA3PRqz.o: In function `JSON_Message::parseDocumentk()':
+/usr/include/rapidjson/reader.h:1163: multiple definition of `JSON_Message::parseDocumentk()'
+/tmp/ccd0bKbs.o:/home/aduster/eclipse-workspace/fort-bpsf/src/tmp/tfs_json_messages.cpp:57: first defined here
+/tmp/ccA3PRqz.o: In function `JSON_Message::JSON_Message(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&, bool)':
+/usr/include/rapidjson/reader.h:1158: multiple definition of `JSON_Message::JSON_Message(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&, bool)'
+/tmp/ccd0bKbs.o:/home/aduster/eclipse-workspace/fort-bpsf/src/tmp/tfs_json_messages.cpp:52: first defined here
+/tmp/ccA3PRqz.o: In function `JSON_Message::JSON_Message(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&, bool)':
+/usr/include/rapidjson/reader.h:1158: multiple definition of `JSON_Message::JSON_Message(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&, bool)'
+/tmp/ccd0bKbs.o:/home/aduster/eclipse-workspace/fort-bpsf/src/tmp/tfs_json_messages.cpp:52: first defined here
+collect2: error: ld returned 1 exit status

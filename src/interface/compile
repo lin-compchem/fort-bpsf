@@ -1,0 +1,3 @@
+g++ -c tfs_json_messages.cpp -o tfserving_messages.o -g  
+g++ -c tfserving_utils.cpp -o tfserving_utils.o -lcurl -g
+g++ -o exe tfserving_utils.o tfserving_messages.o -lcurl -g 
