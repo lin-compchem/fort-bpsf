@@ -8,13 +8,14 @@
 #include <string>
 class TFServer {
   public:
-      //TFServer(int set_port);
       TFServer(int set_port, char* my_model_name);
+      // The below gets the energy
+      void sendBPSF(double *basis, int *max_bas, int *max_atom,
+              int *num_bas, int *num_atom, int *num_el, double *energy);
       ~TFServer();
   private:
-    int port;
-    //std::string model_name = "full_basis";
-    std::string model_name;
+    int port; // Port for Rest API of Tensorflow Server
+    std::string model_name; // Name for Rest API of Tensorflow Server
     //
     // This returns the URL for the model status, has information about whether
     // the model is running and if there is an error code.
@@ -23,11 +24,6 @@ class TFServer {
     // This returns the URI for the metadata, which has information about
     // what the name of the inputs and outputs for a given model are.
     std::string get_metadata_uri();
-    /*
-     * Convert a string to a character array.
-     * This is not being used right now.
-     */
-    char* string_to_char (std::string str);
     /*
      * Initialize the interface with the tensorflow serving container
      */
@@ -44,6 +40,14 @@ class TFServer {
     /* Send a http GET request to the tensorflow serving metadata URL
      */
     void get_tfs_metadata();
+    /* Print the basis to make sure that we are communicating the correct
+     * information
+     */
+    void print_basis(double *basis, int *max_bas, int *max_atom,
+        int *num_bas, int *num_atom, int *num_el);
+    /* Print one element from the above function */
+    void print_el_basis(double *basis, int max_bas, int max_atom, int num_bas,
+                    int num_atom);
 };
 
 //
@@ -67,4 +71,7 @@ extern "C" {
 
     // The const quaificators maps from the member function to pointers in the
     // class instances
+    void tfs_bpsf_energy(TFSERVER* tfserver,  double *basis,int *max_bas,
+        int *max_atom, int *num_bas, int *num_atom, int *num_el,
+        double *energy);
 }

@@ -1,3 +1,5 @@
+#define ANUMKIND 1
+#define NATMKIND 2
 module h5_file_info
     use h5d
     use hdf5
@@ -146,7 +148,7 @@ module h5_file_info
  1040  print *, "Error getting coordinate dimensions"
        stop "init_from_ifi 5"
         stop "init_from_ifi 4"
- 1050  print *, "Error, geom_file does not exist at path: ", if_path
+ 1050  print *, "Error, geom file does not exist at path: ", if_path
        stop "init_from_ifi 6"
     end subroutine FI_init_from_ifi
  

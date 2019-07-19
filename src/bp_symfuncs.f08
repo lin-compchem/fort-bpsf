@@ -59,6 +59,9 @@ module bp_symfuncs
     
     integer(kind=8), parameter :: inf = 7895554 !input file handle
 
+    ! used to copy over to ohter variable
+    character(len=:), allocatable :: h5_path_cache
+
     type basis
         ! The basis functions. First dimension corresponds to atom, second dim
         ! is the basis value
@@ -75,7 +78,6 @@ module bp_symfuncs
         ! first molecule, 1 the second, etc.
         integer*4, dimension(:), allocatable :: bas2mol
     end type mol_id
-
 
 contains
     subroutine calculate_basis(rad_bas, ang_bas, coords, atmnms, natoms, &
@@ -824,9 +826,13 @@ subroutine read_input_file(in_path, h5_path)
     inquire(file=in_path, exist=exists)
     if (.not. exists) goto 950
     open(file=in_path, unit=inf, err=1000)
+    ! Save the h5 path if we need it for this setup routine
     if (present(h5_path)) then
         call read_input_header(h5_path)
-    else
+        h5_path = h5_path_cache ! Here we create a dummy variable in the
+        ! BP Symfuncs module and assign it here because without this 
+        ! assignment the variable was mysteriously deallocating...
+    else ! If called as a library
         call read_input_header(dummy)
     endif
     call check_inputs()
@@ -982,6 +988,7 @@ print *, 'Warning: "geom_file" specified but subroutine was not called with',&
         ! Use a terrible method to read filepaths into the second word
         ! This will fail if there is stuff at the end
             h5_path = trim(line(11:))
+            h5_path_cache = h5_path
         !
         ! Exit loop upon reading element header
         !

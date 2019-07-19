@@ -1,3 +1,6 @@
+! This pragma is the atomic number integer kind
+#define ANUMKIND 1
+#define NATMKIND 2
 program save_bp_symfuncs
    use bp_symfuncs
    use hdf5
@@ -13,7 +16,6 @@ program save_bp_symfuncs
    ! Get the paths from the command line
    call get_file_names(if_path, of_path)
    call read_input_file(if_path, h5_path=h5_path)
-
    ! Get the data from the h5 file
    ! call initialize_rs_eta(0.8d0, 8.0d0, 24)
    call FI_init_from_ifi(h5_path) 

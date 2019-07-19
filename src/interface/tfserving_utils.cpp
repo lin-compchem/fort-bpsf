@@ -80,14 +80,11 @@ void TFServer::get_tfs_metadata() {
     //ModelVersionStatus status(meta_curl.curl_buffer, true);
     //status.checkStatus();
 }
-/*
- * Convert a string to a character array.
- * This is not being used right now.
- */
-char* TFServer::string_to_char (string str) {
-    char *out = new char[str.length() + 1];
-    strcpy(out, str.c_str());
-    return out; 
+void TFServer::sendBPSF(double *basis, int *max_bas, int *max_atom,
+                   int *num_bas, int *num_atom, int *num_el, double *energy) {
+    cout << "SENT BASIS" << endl;
+    print_basis(basis, max_bas, max_atom, num_bas, num_atom, num_el);
+    exit(EXIT_FAILURE);
 }
 
 void TFServer::start_interface() {
@@ -105,3 +102,36 @@ void TFServer::end_interface() {
     // Cleanup curl
     curl_global_cleanup();
 }
+// Prints the basis
+// There are a lot of parameters here
+// The basis object has [Fortran style] indices of
+//  (max_bas, max_atom, total_els). However, many of these will be blank.
+// Therefore we need to only index over the number of things that we have.
+// This is done by the counters num_bas, numatom, and num_el
+//
+// double *basis: array of size (max_bas, max_atom, num_el)
+//                this is the basis to print
+void TFServer::print_basis(double *basis, int *max_bas, int *max_atom,
+        int *num_bas, int *num_atom, int *num_el){
+    int i, j;
+    for (i=0; i < *num_el; ++i)
+    {
+        j = i * *max_bas * *max_atom;
+        print_el_basis(&basis[j], max_bas[0], max_atom[0], num_bas[i],
+               num_atom[i]);
+    }
+}
+void TFServer::print_el_basis(double *basis, int max_bas, int max_atom,
+        int num_bas, int num_atom) {
+    int i, j, idx;
+    int basis_counter = 0;
+    for (i=0; i < num_atom; ++i) {
+        basis_counter = i * max_bas;
+        for (j=0; j < num_bas; ++j){
+            idx = basis_counter + j;
+            printf("%f           %d \n", basis[idx], idx);
+        }
+    }
+}
+
+

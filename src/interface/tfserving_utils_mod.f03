@@ -19,6 +19,19 @@ module libtfserver
             use iso_c_binding
             type(c_ptr), value :: tfserver
         end subroutine delete_tfserver_c
+        ! Print the basis
+        subroutine bpsf_energy_c(tfserver, bas, max_bas, max_atoms, &
+            num_bas, num_of_els, num_els, energy) bind(C, name="tfs_bpsf_energy")
+            use iso_c_binding
+            type(c_ptr), value :: tfserver
+            real(c_double), intent(in) :: bas(max_bas, max_atoms, num_els)
+            integer(c_int), intent(in) :: max_bas         ! dimension of basis array
+            integer(c_int), intent(in) :: max_atoms       ! dimension of basis array
+            integer(c_int), intent(in) :: num_bas(num_els)! number of basis functions for each el
+            integer(c_int), intent(in) :: num_els         ! total number elements
+            integer(c_int), intent(in) :: num_of_els(num_els)! number of each element
+            real(c_double), intent(out) :: energy ! energy of calculation
+        end subroutine bpsf_energy_c
     end interface
 
     ! Use a fortran type to represent the c++ class in an opaque manner
@@ -38,6 +51,7 @@ module libtfserver
 #else
         final :: delete_tfserver ! Destructor
 #endif
+        procedure :: sendBPSF => bpsf_energy
     end type tfserver
 
     ! This function acts as a constructor for the tfserver type
@@ -55,18 +69,35 @@ contains ! Implementation of the functions, we just wrap the C function here
                                     trim(adjustl(model_name))//char(0))
     end function create_tfserver
 
-    subroutine delete_tfserver(this)
+    subroutine delete_tfserver(tfs)
         implicit none
-        type(tfserver) :: this
-        call delete_tfserver_c(this%ptr)
+        type(tfserver) :: tfs
+        call delete_tfserver_c(tfs%ptr)
     end subroutine
 
     ! Bounds procedure needs to take a polymorphic (class) argument
-    subroutine delete_tfserver_polymorph(this)
+    subroutine delete_tfserver_polymorph(tfs)
         implicit none
-        class(tfserver) :: this
-        call delete_tfserver_c(this%ptr)
+        class(tfserver) :: tfs
+        call delete_tfserver_c(tfs%ptr)
     end subroutine delete_tfserver_polymorph
+
+    ! subroutine bpsf_energy(this)
+    subroutine bpsf_energy(tfs, basis, max_bas, max_atoms, &
+            num_bas, num_of_els, num_els, energy)
+        class(tfserver), intent(in) :: tfs
+        real(kind=8), intent(in) :: basis(max_bas, max_atoms, num_els)
+        integer(kind=4), intent(in) :: max_bas         ! dimension of basis array
+        integer(kind=4), intent(in) :: max_atoms       ! dimension of basis array
+        integer(kind=4), intent(in) :: num_bas(num_els)! number of basis functions for each el
+        integer(kind=4), intent(in) :: num_of_els(num_els)! number of each element
+        integer(kind=4), intent(in) :: num_els         ! total number elements
+        real(kind=8), intent(out) :: energy ! energy of calculation
+
+        call bpsf_energy_c(tfs%ptr, basis, max_bas, max_atoms, &
+           num_bas, num_of_els, num_els, energy) 
+    end subroutine bpsf_energy
+
 
 end module libtfserver
 
