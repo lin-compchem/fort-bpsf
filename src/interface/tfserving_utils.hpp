@@ -8,11 +8,11 @@
 #include <string>
 class TFServer {
   public:
-      TFServer(int set_port, char *set_model_name);
+      TFServer(int set_port);
       ~TFServer();
   private:
     int port;
-    std::string model_name;
+    std::string model_name = "full_basis";
     //
     // This returns the URL for the model status, has information about whether
     // the model is running and if there is an error code.

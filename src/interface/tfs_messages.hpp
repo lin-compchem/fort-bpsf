@@ -50,9 +50,12 @@ class ModelVersionStatus: public JSON_Message {
                    mstate[6] = "state",
                    mstatus[7] = "status",
                    merror_code[11] = "error_code",
-                   merror_message[14] = "error_message";
+                   merror_message[14] = "error_message",
+                   good_code[3] = "OK",
+                   good_state[10] = "AVAILABLE";
 
         // Member functions
         int parseDocument(); 
+        void printStatus();
 };
 #endif

@@ -10,128 +10,96 @@
 #include <stdio.h>
 #include <iostream>
 #include <stdlib.h>
-// RapidJSON Headers
-#include <rapidjson/rapidjson.h>
-#include <rapidjson/document.h>
-#include <rapidjson/prettywriter.h>
 // Program includes
-#include "tfs_json_messages.h"
+#include "tfs_messages.hpp"
+#include "tfserving_utils.hpp"
+#include "curler.hpp"
 
 using namespace std;
 using namespace rapidjson;
-
-
-static char errorBuffer[CURL_ERROR_SIZE];
-
- 
-// Writer function modified from libcurl tutorial
+// Constructor
+//TFServer::TFServer(int set_port, char *set_model_name)
+//                       :port(set_port), model_name(set_model_name) {
+TFServer::TFServer(int set_port):port(set_port) {
+   start_interface();  
+}
+// Destructor
+TFServer::~TFServer() {
+    end_interface();
+}
 //
-// It appends the output from the request to the curl buffer.
-// It will remove previous output (ithink) but keep other output?
-int writer(char *data, size_t size, size_t nmemb, string *buffer) {
-    int result = 0;
-    if (buffer != NULL) {
-         buffer->append(data, size * nmemb);
-         result = size * nmemb;
-         }
-    return result;
-}
-
-// Send a http GET request to the curl server URI
-// Then check the resulting message to make sure the server is running
-// as expected.
-bool check_tf_server(CURL *curl, string curl_buffer) {
-    CURLcode code;
-    code = curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-    code = curl_easy_perform(curl);
-    if(code != CURLE_OK) {
-        fprintf(stderr, "Failed to get TF server status [%s]\n", errorBuffer);
-    }
-    ModelVersionStatus status(curl_buffer, true);
-    return true; 
-}
-
-
-static bool init(CURL *&conn, const char *url, string curl_buffer)
-{
-    CURLcode code;
-  
-    conn = curl_easy_init();
-  
-    if(conn == NULL) {
-      fprintf(stderr, "Failed to create CURL connection\n");
-      exit(EXIT_FAILURE);
-    }
-    //Error buffer
-    //code = curl_easy_setopt(conn, CURLOPT_ERRORBUFFER, errorBuffer);
-    //if(code != CURLE_OK) {
-    //  fprintf(stderr, "Failed to set error buffer [%d]\n", code);
-    //  return false;
-    //}
-    //Server address
-    code = curl_easy_setopt(conn, CURLOPT_URL, url);
-    if(code != CURLE_OK) {
-      fprintf(stderr, "Failed to set URL [%s]\n", errorBuffer);
-      return false;
-    }
-    // Set the writefunction, this is called whenever chunks of data
-    // are generated
-    code = curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, writer);
-    if(code != CURLE_OK) {
-      fprintf(stderr, "Failed to set writer [%s]\n", errorBuffer);
-      return false;
-    }
-    // This is where the output from the request goes.
-    code = curl_easy_setopt(conn, CURLOPT_WRITEDATA, &curl_buffer);
-    if(code != CURLE_OK) {
-      fprintf(stderr, "Failed to set write data [%s]\n", errorBuffer);
-      return false;
-    }
-    // Set the time out to a generous 2 seconds
-    code = curl_easy_setopt(conn, CURLOPT_TIMEOUT, 2L);
-    if(code != CURLE_OK) {
-        fprintf(stderr, "Failed to set timeout option [%s]\n", errorBuffer);
-    }
-    return true;
-}
-
-string get_model_uri(int port, string model_name) {
+// This returns the URL for the model status, has information about whether
+// the model is running and if there is an error code.
+string TFServer::get_model_status_uri() {
     string uri = "http://localhost:";
     uri += to_string(port);
     uri += "/v1/models/" + model_name;
     return uri;
 }
+//
+// This returns the URI for the metadata, which has information about
+// what the name of the inputs and outputs for a given model are.
+string TFServer::get_metadata_uri() {
+    string uri = "http://localhost:";
+    uri += to_string(port);
+    uri += "/v1/models/" + model_name + "/metadata";
+    return uri;
+}
+/* Send a http GET request to the curl server URI
+ * Then check the resulting message to make sure the server is running
+ * as expected.
+ */
+void TFServer::check_tfs_status() {
+    // Local variables
+    string uri = get_model_status_uri();
+    Curler stat_curl;
+    
+    // Initialize connection with the model url
+    stat_curl.setURL(uri.c_str());
+    stat_curl.httpGet();
 
-char* string_to_char (string str) {
+    // Check the return from the curl operation 
+    ModelVersionStatus status(stat_curl.curl_buffer, true);
+    status.checkStatus();
+}
+/* Send a http GET request to the tensorflow serving metadata URL
+ */
+void TFServer::get_tfs_metadata() {
+    // Local variables
+    string uri = get_metadata_uri();
+    Curler meta_curl;
+    
+    // Initialize connection with the model url
+    meta_curl.setURL(uri.c_str());
+    meta_curl.httpGet();
+
+    // Check the return from the curl operation 
+    cout << meta_curl.curl_buffer; 
+    //ModelVersionStatus status(meta_curl.curl_buffer, true);
+    //status.checkStatus();
+}
+/*
+ * Convert a string to a character array.
+ * This is not being used right now.
+ */
+char* TFServer::string_to_char (string str) {
     char *out = new char[str.length() + 1];
     strcpy(out, str.c_str());
     return out; 
 }
 
-
-int main(int arg, char **argv) {
-    CURL *curl = NULL;
-    CURLcode result;
-    int port = 8500;
-    bool inited = false;
-    string model_name = "half_plus-two";
-    string uri = get_model_uri(port, model_name) ;
-    string curl_buffer; 
-    cout << uri << "\n";
-
+void TFServer::start_interface() {
     // Initialize curl libraries
     curl_global_init(CURL_GLOBAL_DEFAULT);
-
-    // Initialize connection with specific url
-    inited = init(curl, uri.c_str(), curl_buffer);
-    if (!inited) {
-        cerr << "FAILED to INIT";
-        exit(EXIT_FAILURE);
-    }
-    //
+    
     // Check that the tensorflow server is OK
-    check_tf_server(curl, curl_buffer);
+    check_tfs_status();
+    
+    // Get the model metadata
+    get_tfs_metadata();
+} 
+
+void TFServer::end_interface() {
     // Cleanup curl
     curl_global_cleanup();
-
 }
