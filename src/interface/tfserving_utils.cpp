@@ -20,7 +20,9 @@ using namespace rapidjson;
 // Constructor
 //TFServer::TFServer(int set_port, char *set_model_name)
 //                       :port(set_port), model_name(set_model_name) {
-TFServer::TFServer(int set_port):port(set_port) {
+TFServer::TFServer(int set_port, char* my_model_name):port(set_port) {
+//TFServer::TFServer(int set_port):port(set_port) {
+   model_name = my_model_name;
    start_interface();  
 }
 // Destructor

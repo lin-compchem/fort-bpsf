@@ -64,6 +64,7 @@ def check2d(ifi, rfi, key, i_shape, verbose=False):
     equal = 0
     big = 0
     small = 0
+    assert ifi[key].shape == rfi[key].shape
     for j in range(i_shape[0]):
         for k in range(i_shape[1]):
             fail = False
@@ -126,11 +127,11 @@ def main():
             'h_radial_sym_funcs',
             'h_angular_sym_funcs',
             'o_radial_sym_funcs',
-            'o_angular_sym_funcs'
+            'o_angular_sym_funcs',
             'h_rad_cartesian_gradient',
             'o_rad_cartesian_gradient',
             'h_ang_cartesian_gradient',
-            'o_ang_cartesian_gradient',
+            'o_ang_cartesian_gradient'
             ]
     ifi = h5.File(args.input, 'r')
     rfi = h5.File(args.reference, 'r')
@@ -156,8 +157,7 @@ def main():
             print("Current key: %s" % key)
             print("Key shape: ", i_shape)
             print("Ref shape: ", r_shape)
-        if (i_shape != r_shape) and (key != 'o_radial_sym_funcs') and \
-        (args.test != 1):
+        if (i_shape != r_shape) and (args.test == 0):
             print("Error for key %s" % key)
             print("Input shape {0} for key {2} does not equal reference shape {1}".format(i_shape, r_shape, key))
             continue

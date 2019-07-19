@@ -18,13 +18,16 @@ program caller
     integer*2, parameter :: natm = 9
     real*8 :: coords(3,natm)
     integer*1 :: atmnum(natm)
+    character(len=:), allocatable :: in_path
+
+    in_path = 'bp.inp'
 
     ! Read the .xyz coord file
     call read_xyzfile(natm, coords, atmnum)
     call print_coords(natm, coords, atmnum)
 
     ! This needs to always be called first to initialize the module
-    call initialize_element_pars()
+    call read_input_file(in_path)
     ! Now we can define variables based on how it was initialized
     call stage_calculation(natm, coords, atmnum)
 

@@ -9,7 +9,7 @@ default: fdemo1
 fdemo1: fdemo1.o tfserving_utils_mod.o $(OBJ)
 	$(FC) $(FFLAGS) -o fdemo1.x tfserving_utils_mod.o $< $(OBJ) $(LIBS)
 demo1: demo1.o $(OBJ)
-	$(CC) $(CFLAGS) -o demo1x $< $(OBJ) $(LIBS)
+	$(CC) $(CFLAGS) -o demo1.x $< $(OBJ) $(LIBS)
 .PHONY: clean
 clean:
 	rm -rf *.o

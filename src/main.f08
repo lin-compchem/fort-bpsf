@@ -8,11 +8,11 @@ program save_bp_symfuncs
    implicit none
    character(len=:), allocatable :: if_path, of_path, h5_path
    real*8, allocatable :: coords(:,:,:)
-   integer*1, allocatable :: atmnm(:,:)
-   integer*2, allocatable :: natoms(:)
+   integer*ANUMKIND, allocatable :: atmnm(:,:)
+   integer*NATMKIND, allocatable :: natoms(:)
    ! Get the paths from the command line
    call get_file_names(if_path, of_path)
-   call read_input_file(if_path, h5_path)
+   call read_input_file(if_path, h5_path=h5_path)
 
    ! Get the data from the h5 file
    ! call initialize_rs_eta(0.8d0, 8.0d0, 24)

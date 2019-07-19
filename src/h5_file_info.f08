@@ -58,8 +58,8 @@ module h5_file_info
  
     ! Types for the dataset
     ! integer, parameter :: atmnm_type = 
-    ! integer*2 num_atoms
-    ! integer*1 atm_num
+    ! integer*NATMKIND num_atoms
+    ! integer*ANUMKIND atm_num
     ! real*8 coords
 
  contains
@@ -156,8 +156,8 @@ module h5_file_info
        implicit none
        ! IO Vars
        real*8, intent(out), allocatable :: coords(:,:,:)
-       integer*2, intent(out), allocatable :: natoms(:)
-       integer*1, intent(out), allocatable :: atmnms(:,:)
+       integer*NATMKIND, intent(out), allocatable :: natoms(:)
+       integer*ANUMKIND, intent(out), allocatable :: atmnms(:,:)
        integer :: err
        ! Begin
        allocate(coords(3, max_atoms, num_geoms))
@@ -195,12 +195,12 @@ module h5_file_info
     !    ! Find the number of occurences of the atomic number in the array
     !    implicit none
     !    ! IO Vars
-    !    integer*1 el
+    !    integer*ANUMKIND el
     !    integer FI_find_num_atoms_of_el
  
     !    ! Local vars
     !    integer i, j
-    !    integer*1 rbuf
+    !    integer*ANUMKIND rbuf
  
     !    !Begin
     !    do i=1, num_geoms
@@ -215,11 +215,11 @@ module h5_file_info
        ! Find the number of atomic symbols matching "el" in input array
        implicit none
        ! IO Vars
-       integer*1, intent(in) :: atmnms(:,:)
+       integer*ANUMKIND, intent(in) :: atmnms(:,:)
        integer, intent(in) :: el
        integer, intent(out) :: num_of_els 
        ! Local Vars
-       integer*1 :: el1
+       integer*ANUMKIND :: el1
        integer i, j, dims(2)
        !Begin
        dims(1:2) = shape(atmnms)
@@ -243,7 +243,7 @@ module h5_file_info
        type(basis), dimension(num_els), intent(out) :: ang_bas, rad_bas
        type(mol_id), dimension(num_els), intent(out) :: mol_ids
        integer*4, allocatable, intent(out) :: mol2bas(:,:,:)
-       integer*1, intent(in) :: atmnms(:,:)
+       integer*ANUMKIND, intent(in) :: atmnms(:,:)
        ! Local vars
        integer i
        ! Begin Subroutine

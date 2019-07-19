@@ -304,6 +304,7 @@ This is implemented as and equivalent to:
 
 \section{Tests}
 \subsection{Test 1 - Comparing answers with reference}
+
 \subsection{Test 2 - Calculation of the radial gradient}
 In this test, a simple system was constructed to check the numerical accuracy of the gradient calculations. The O-H molecule was constructed, with the O-H bond measuring 1.0 $\mathrm{\AA}$ and lying along the $x$-axis. The $y$ and $z$ coordinates were all set to 0. Thus, the derivative of the radial symmetry functions should only be non-zero in the $x$ direction, and the result can be easily checked. Additionally, the gradient should be symmetrical between the O and the H atoms.The answers are presented here. The ith atom is the O with coordinates of (-1, 0, 0| and the jth atom is the H with coordinates (1, 0, 0).
 
@@ -320,5 +321,12 @@ From equation \eqref{eq:rad_derivative}, the final answer can be calculated:
 
 $\frac{\partial G^2_{ij}}{\partial x} = -3.475089$
 
+\subsection{Test 3 - Calculation of the angular gradient}
 
+\subsection{Test 4 - Parallel Compare}
+
+\subsection{Test 5 - Call as a library}
+This example shows code that uses FORT-BPSF as a library.
+
+\subsection{Test 6 - Call with JSON Interface}
 \end{document}

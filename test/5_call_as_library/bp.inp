@@ -4,7 +4,6 @@ max_bond            2
 max_rs_eta          24 
 max_eta_zeta_lam    18 
 num_els             2 
-geom_file           ../../test_files/test_3b_1-cartgeom.h5
 verbose             1
 element   1   2   2
     bond  1

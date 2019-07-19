@@ -17,6 +17,6 @@ int main(int argc, char **argv) {
       cerr << "    \"./demo1 [model_name]\"" << endl;
       exit(EXIT_FAILURE);
     }
-    //TFServer a(8504, argv[1]);
-    TFServer a(8504);
+    TFServer a(8504, argv[1]);
+    //TFServer a(8504);
 }

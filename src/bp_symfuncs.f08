@@ -1,5 +1,6 @@
 ! This pragma is the atomic number integer kind
 #define ANUMKIND 1
+#define NATMKIND 2
 module bp_symfuncs
     implicit none
     integer, parameter :: dp = selected_real_kind(15,300)
@@ -77,129 +78,6 @@ module bp_symfuncs
 
 
 contains
-!    subroutine initialize_rs_eta(rs_start, rs_end, num, rs, etas)
-!!    This subroutine (re)initializes the rs and eta arrays according to the
-!!    expression:
-!!        1 / sqrt(2*eta) = 0.2 * Rs
-!!    equal spacing is created between the rs_start and rs_end parameters
-!        implicit none
-!!        IO VARS
-!        real(dp), intent(in) :: rs_start, rs_end
-!        integer, intent(in) :: num
-!        real(dp), intent(inout):: rs(:), etas(:)
-!!        Local Vars
-!        real(dp) rs_spacer
-!        integer i
-!!        Begin
-!        rs_spacer = (rs_end - rs_start) / (num - 1)
-!        do i=0, num - 1
-!            rs(i + 1) = rs_start + i * rs_spacer
-!        enddo
-!        etas(1:num) = 0.5 * ( 5. / Rs(1:num)) ** 2
-!    end subroutine initialize_rs_eta
-    
-!    subroutine initialize_element_pars
-!        ! Initialize the element parameters (num bonds, etas, zetas, etc.)
-!        implicit none
-!        integer i, j
-!        real(dp) :: rs_start = 0.8d0, rs_end = 8.0d0
-!        integer :: num_rs = 24
-!        ! Initialize all vars with 0s
-!
-!
-!        ! Initialize the eta RS values
-!        rad_types(1, 1) = 1
-!        rad_size(1, 1) = num_rs
-!        rad_b_ind(1, 1) = 1
-!        call initialize_rs_eta(rs_start, rs_end, num_rs, rs(:, 1, 1), eta(:, 1, 1))
-!        rad_types(2, 1) = 8
-!        rad_size(2, 1) = num_rs
-!        rad_b_ind(2, 1) = rad_b_ind(1, 1) + rad_size(1, 1)
-!        call initialize_rs_eta(rs_start, rs_end, num_rs, rs(:, 2, 1), eta(:, 2, 1))
-!        num_bonds(1) = 2
-!
-!        rad_types(1, 2) = 1
-!        rad_size(1, 2) = num_rs
-!        rad_b_ind(1, 2) = 1
-!        call initialize_rs_eta(rs_start, rs_end, num_rs, rs(:, 1, 2), eta(:, 1, 2))
-!        rad_types(2, 2) = 8
-!        rad_size(2, 2) = num_rs
-!        rad_b_ind(2, 2) = rad_b_ind(1, 2) + rad_size(1, 2)
-!        call initialize_rs_eta(rs_start, rs_end, num_rs, rs(:, 2, 2), eta(:, 2, 2))
-!        num_bonds(2) = 2
-!
-!        do i=1, num_els
-!            radbas_length(i) = 0d0
-!            do j=1, max_bonds
-!                radbas_length(i) = radbas_length(i) +rad_size(j, i)
-!            enddo
-!        enddo
-!
-!        !Initialize the angle variables
-!        ang_types(:, 1, 1) = [1, 1]
-!        ang_types(:, 2, 1) = [1, 8]
-!        num_angles(1) = 2
-!        ang_types(:, 1, 2) = [8, 8]
-!        ang_types(:, 2, 2) = [1, 8]
-!        ang_types(:, 3, 2) = [1, 1]
-!        num_angles(2) = 3
-!
-!        ang_b_ind(1, :) = 0
-!        do i=1, num_els
-!            angbas_length(i) = 0
-!            do j=1, num_angles(i)
-!                ang_b_ind(j, i) = ang_b_ind(j, i) + angbas_length(i) + 1
-!                lambdas(1:2, j, i) = [-1.d0, 1.d0]
-!                eprimes(1:3, j, i) = [0.001d0, 0.01d0, 0.05d0]
-!                zetas(1:3, j, i) = [1.d0, 4.d0, 16.d0]
-!                ang_size(j, i) = 2 * 3 * 3
-!                angbas_length(i) = angbas_length(i) + ang_size(j, i)
-!            enddo
-!        enddo
-!        !TODO: THIS MUST BE CHANGED IF THE ETAS ZETAS LAMBDAS ARE NOT ALL
-!        !      THE SAME
-!        call init_eta_zeta_lambda(eprimes(:,1,1), zetas(:,1,1), lambdas(:,1,1),&
-!             num_etzetlam, etzetlam)
-!    end subroutine initialize_element_pars
-
-!    subroutine init_eta_zeta_lambda(in_eta, in_zeta, in_lambda, &
-!                                    o_num_ezl, o_ezl)
-!    ! Initialize the ezl array which has all possible etas, zetas, and
-!    ! lambdas stored in an array for vectorized computations
-!    implicit none
-!    ! I/O Variables
-!    real(kind=8), intent(in) :: in_eta(:), in_zeta(:), in_lambda(:)
-!    integer, intent(out) :: o_num_ezl
-!    real(kind=8), allocatable, intent(inout) :: o_ezl(:,:)
-!    ! Local variables
-!    integer :: my_neta, my_nzeta, my_nlambda
-!    integer :: e, z, l, i
-!
-!    if (rank(in_eta) .gt. 1) then
-!        stop 'init_eta_zeta_lambda invalid eta rank'
-!    elseif (rank(in_zeta) .gt. 1) then
-!        stop 'init_eta_zeta_lambda invalid zeta rank'
-!    elseif (rank(in_lambda) .gt. 1) then
-!        stop 'init_eta_zeta_lambda invalid lambda rank'
-!    endif
-!
-!    my_neta = size(in_eta)
-!    my_nzeta = size(in_zeta)
-!    my_nlambda = size(in_lambda)
-!    o_num_ezl = my_neta * my_nzeta * my_nlambda
-!    allocate(o_ezl(o_num_ezl, 3))
-!    i = 1
-!    do e=1, num_eprimes
-!        do z=1, num_zetas
-!            do l=1, num_lambdas
-!                o_ezl(i, 1:3) = [in_eta(e), in_zeta(z), in_lambda(l)]
-!                i = i + 1
-!            ENDDO
-!        ENDDO
-!    ENDDO
-!
-!    end subroutine init_eta_zeta_lambda
-
     subroutine calculate_basis(rad_bas, ang_bas, coords, atmnms, natoms, &
                                max_atoms, num_geoms, num_of_els, mol_ids, &
                                mol2bas)
@@ -210,7 +88,7 @@ contains
         integer, intent(in) :: num_of_els(num_els)
         real*8, intent(in) :: coords(3, max_atoms, num_geoms)
         integer*ANUMKIND, intent(in) :: atmnms(max_atoms, num_geoms)
-        integer*2, intent(in) :: natoms(num_geoms)
+        integer*NATMKIND, intent(in) :: natoms(num_geoms)
 !TODO:  MAKE SURE THIS CORRESPONDS WITH THE ACTUAL DIMS IF TOO MUCH MONKEYING IS DONE
         type(basis), intent(inout) :: rad_bas(num_els), ang_bas(num_els)
         type(mol_id), intent(inout) :: mol_ids(num_els)
@@ -416,7 +294,7 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
     !
     ! Input Variables
     !
-    integer*2, intent(in) :: natm           ! number of atoms
+    integer*NATMKIND, intent(in) :: natm           ! number of atoms
     integer*ANUMKIND, intent(in) :: atmnms(natm) ! atomic numbers
     real*8, intent(in) :: coords(3, natm) ! coordinates
     integer, intent(in) :: max_atom ! size of basis
@@ -478,7 +356,7 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
 
    !$OMP PARALLEL &
    !$OMP& private(i_type, j_type) &
-   !$OMP& private(x, i, j, k, m) &
+   !$OMP& private(x, i, j, k) &
    !$OMP& private(myang, tmp_dang) &
    !$OMP& private(tmp_rad, tmp_drad)
    !$OMP    DO
@@ -583,11 +461,11 @@ subroutine save_angbas(i, j, k, e, t, c, myang, tmp_dang, ang_bas, ang_grad, max
         ! store the gradient
         !
             !$OMP ATOMIC UPDATE
-            ang_grad(l, i, b, c, e) = tmp_dang(l,a,1)
+            ang_grad(l, i, b, c, e) = ang_grad(l, i, b, c, e) + tmp_dang(l,a,1)
             !$OMP ATOMIC UPDATE
-            ang_grad(l, j, b, c, e) = tmp_dang(l,a,2)
+            ang_grad(l, j, b, c, e) = ang_grad(l, j, b, c, e) + tmp_dang(l,a,2)
             !$OMP ATOMIC UPDATE
-            ang_grad(l, k, b, c, e) = tmp_dang(l,a,3)
+            ang_grad(l, k, b, c, e) = ang_grad(l, k, b, c, e) + tmp_dang(l,a,3)
         enddo
     enddo
 end subroutine save_angbas
@@ -925,16 +803,32 @@ end function find_angle_type
 ! Reads the input file
 ! Calls routines to allocate arrays
 ! Fills them
+!
+! Note this subroutine must be called if the program will be called
+! as a library or if it will be called as a standalone program. As
+! such, there may or maynot be a need for the h5_path variable because
+! if it is a library we don't need to read from the h5 file. Here we
+! just create a dummy variable that we throw away if h5_path is not used.
 subroutine read_input_file(in_path, h5_path)
     ! Read the input file to the bp program and intitialize the variables
     ! Set the requisite variables
     implicit none
     ! I/O Vars
-    character(len=:),allocatable, intent(inout) :: in_path, h5_path
+    character(len=:), allocatable :: in_path
+    character(len=:), allocatable, optional :: h5_path
+    character(len=:), allocatable :: dummy
+    ! Local variablels
+    logical exists
 
     ! Begin
+    inquire(file=in_path, exist=exists)
+    if (.not. exists) goto 950
     open(file=in_path, unit=inf, err=1000)
-    call read_input_header(h5_path)
+    if (present(h5_path)) then
+        call read_input_header(h5_path)
+    else
+        call read_input_header(dummy)
+    endif
     call check_inputs()
     call setup_element_variables()
     call read_elements()
@@ -943,8 +837,9 @@ subroutine read_input_file(in_path, h5_path)
     call print_input()
 
     return
-
    ! Error handling
+ 950 print *, 'Error, could not find BPSF input file at path: ', in_path
+    stop 'read_input_file 2'
 1000 print *, 'Error opening input file : ', in_path
     stop 'read_input_file 1'
 end subroutine read_input_file
@@ -956,7 +851,7 @@ implicit none
 
     if (verbose .le. 0) return
     print 10
-10 format(32('#'), ' INPUT SUMMARY ', 32('#'))
+10 format(30('#'), ' BPSF INPUT SUMMARY ', 30('#'))
 20 format(A37, 6x, I3)
 80 format(/,A37, 6x, I3)
 30 format(A37, 6x, F6.3)

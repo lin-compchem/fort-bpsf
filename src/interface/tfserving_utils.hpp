@@ -8,11 +8,13 @@
 #include <string>
 class TFServer {
   public:
-      TFServer(int set_port);
+      //TFServer(int set_port);
+      TFServer(int set_port, char* my_model_name);
       ~TFServer();
   private:
     int port;
-    std::string model_name = "full_basis";
+    //std::string model_name = "full_basis";
+    std::string model_name;
     //
     // This returns the URL for the model status, has information about whether
     // the model is running and if there is an error code.
@@ -57,7 +59,8 @@ extern "C" {
     typedef TFServer TFSERVER;
 
     //Constructor
-    TFSERVER* create_tfserver(int port);
+    //TFSERVER* create_tfserver(int port);
+    TFSERVER* create_tfserver(int port, char* model_name);
 
     //Destructor
     void delete_tfserver(TFSERVER* tfserver);
