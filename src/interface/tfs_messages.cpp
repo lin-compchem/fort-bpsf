@@ -129,3 +129,21 @@ void ModelVersionStatus::checkStatus() {
     }
     if (verbose) { cout << "Model Status is GOOD!" << endl; }
 }
+
+//JSONWriter::JSONWriter() {
+//    cerr << "Initializing JSON WRITING" << endl;
+//    writer(outstr); 
+//	char key [] = "input";
+//    writer.StartObject();
+//    writer.Key(key);
+//    writer.StartArray();
+//    for(int i=0; i<3; ++i) {
+//        writer.Int(i);
+//    }
+//    writer.EndArray();
+//    cout << outstr.GetString() << endl;
+//    writer.EndObject();
+//    cout << outstr.GetString() << endl;
+//    cout << "HERE";
+//    exit(EXIT_FAILURE);
+//}

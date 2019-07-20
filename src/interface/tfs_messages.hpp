@@ -2,13 +2,19 @@
 
 #include <string>
 #include <cstring>
-#include <iostream>
 #include <stdio.h>
-#include <iostream>
 #include <stdlib.h>
+#include <iostream>
 // RapidJSON Headers
+#include <rapidjson/document.h> // includes rapidjson/rapidjson.h 
 #include <rapidjson/rapidjson.h>
-#include <rapidjson/document.h>
+
+#define PRETTYWRITER
+#ifdef PRETTYWRITER
+  #include <rapidjson/prettywriter.h>
+#else
+  #include <rapidjson/writer.h>
+#endif
 
 #ifndef TFS_JSON
 #define TFS_JSON
@@ -17,16 +23,27 @@ class JSON_Message {
         // General Vars
         rapidjson::Document document; // This is the object to parse the JSON string into
         const char my_name[8] = "generic"; // Name of message for error messages
-        int parse_status = -1;
+        int parse_status = -1; // Error flag
         // Member functions
         JSON_Message();
         JSON_Message(std::string &json_string, bool verbose_flag=false);
     protected:
         bool verbose = false; // Flag for verbosity
+        /*
+         * READ JSON VARIABLES
+         *  The following subroutines are for putting JSON variables encoded
+         * in &json_string into a document and then parsing the variables
+         * in said document
+         */
+        // Have the document object parse the &json_string
         void setupDocument(std::string &json_string); 
+        // Get the data out of the document object after setupDocument is called
         virtual int parseDocument();
+        // Error handling for above
         void parseFail();
+        // setup and parse the documents
         void initialize(std::string &json_string);
+        
 };
 #endif
 #ifndef TFS_MVS
@@ -59,3 +76,23 @@ class ModelVersionStatus: public JSON_Message {
         void printStatus();
 };
 #endif
+//#ifndef TFS_WRITER
+//#define TFS_WRITER
+/*
+ * WRITE JSON VARIABLES
+ *
+ * The following subroutines are for serializing data structures into
+ * JSON strings
+ */
+//class JSONWriter {
+//  public:
+//    rapidjson::StringBuffer outstr;
+//    rapidjson::Writer<rapidjson::StringBuffer, rapidjson::UTF8<char>,
+//	                      rapidjson::UTF8<char>, NULL,
+//	                      0> writer;
+//    // Member functions
+//    JSONWriter();
+// private:
+//    int a;
+//};
+//#endif

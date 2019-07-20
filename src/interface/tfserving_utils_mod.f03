@@ -7,6 +7,7 @@ module libtfserver
     ! C function definition for the TFServing object
     ! Functions are in tfserving_utils_capi.cpp
     interface
+        ! 
         ! Constructor
         function create_tfserver_c(port, model_name) bind(C, name="create_tfserver")
             use iso_c_binding
@@ -14,11 +15,18 @@ module libtfserver
             integer(c_int), value :: port
             character(kind=c_char,len=1) :: model_name
         end function
+        ! 
         ! Destructor
         subroutine delete_tfserver_c(tfserver) bind (C, name="delete_tfserver")
             use iso_c_binding
             type(c_ptr), value :: tfserver
         end subroutine delete_tfserver_c
+        !
+        ! Run a test with a simplified TF model
+        subroutine model_test1_c(tfserver) bind(C, name="tfs_model_test1")
+            use iso_c_binding
+            type(c_ptr), value :: tfserver
+        end subroutine model_test1_c
         ! Print the basis
         subroutine bpsf_energy_c(tfserver, bas, max_bas, max_atoms, &
             num_bas, num_of_els, num_els, energy) bind(C, name="tfs_bpsf_energy")
@@ -52,6 +60,7 @@ module libtfserver
         final :: delete_tfserver ! Destructor
 #endif
         procedure :: sendBPSF => bpsf_energy
+        procedure :: modelTest1 => model_test1
     end type tfserver
 
     ! This function acts as a constructor for the tfserver type
@@ -98,6 +107,10 @@ contains ! Implementation of the functions, we just wrap the C function here
            num_bas, num_of_els, num_els, energy) 
     end subroutine bpsf_energy
 
-
+    subroutine model_test1(tfs)
+        implicit none
+        class(tfserver) :: tfs
+        call model_test1_c(tfs%ptr)
+    end subroutine model_test1
 end module libtfserver
 

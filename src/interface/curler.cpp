@@ -90,12 +90,23 @@ int Curler::writer(char *data, size_t size, size_t nmemb, string *buffer) {
          }
     return result;
 }
-
+// HTTP Get command using CURL
 void Curler::httpGet() {
     code = curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
     code = curl_easy_perform(curl);
     if(code != CURLE_OK) {
-        cerr <<  "Failed to get TF server status \n Error buffer: " << errorBuffer;
+        cerr <<  "Failed to perform HTTP GET\n Error buffer: " << errorBuffer;
+        exit(EXIT_FAILURE);
+    }
+}
+//
+// This should be same as command:
+//      curl -d '{llll}' -X post [url]
+void Curler::httpPost(string post_field) {
+    code = curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_field.c_str());
+    code = curl_easy_perform(curl);
+    if(code != CURLE_OK) {
+        cerr <<  "Failed to perform POST\n Error buffer: " << errorBuffer;
         exit(EXIT_FAILURE);
     }
 }

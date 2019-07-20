@@ -26,12 +26,16 @@ void delete_tfserver(TFSERVER* tfserver) {
   #endif 
     delete tfserver;
 }
-// Get the energy fromt he tensorflow server
+// Get the energy from the tensorflow server
 void tfs_bpsf_energy(TFSERVER* tfserver,  double *basis, int *max_bas,
         int *max_atom, int *num_bas, int *num_atom, int *num_el,
         double *energy) {
     return tfserver->sendBPSF(
             basis, max_bas, max_atom, num_bas, num_atom, num_el, energy
             );
+}
+// This goes with 
+void tfs_model_test1(TFSERVER* tfserver) {
+    return tfserver->ModelTest1();
 }
  

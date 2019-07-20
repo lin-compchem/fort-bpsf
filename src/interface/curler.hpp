@@ -21,6 +21,7 @@ class Curler {
     // Curler(std::string url); Cant get to work...
     void setURL(std::string url); 
     void httpGet();
+    void httpPost(std::string post_field);
   private:
     static int writer(char *data, size_t size, size_t nmemb, std::string *buffer);
     //bool init(); 
