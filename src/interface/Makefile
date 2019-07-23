@@ -1,10 +1,10 @@
 CC=g++
 CFLAGS=
 FC=gfortran
-FFLAGS=-cpp
+FFLAGS=-cpp -I../
 SRC=tfserving_utils.cpp tfs_messages.cpp
 OBJ=tfserving_utils.o tfs_messages.o tfserving_utils_capi.o curler.o 
-LIBS= -lcurl -lgfortran -lstdc++
+LIBS= -lcurl -lgfortran -lstdc++ -I../
 default: fdemo1
 fdemo1: fdemo1.o tfserving_utils_mod.o $(OBJ)
 	$(FC) $(FFLAGS) -o fdemo1.x tfserving_utils_mod.o $< $(OBJ) $(LIBS)

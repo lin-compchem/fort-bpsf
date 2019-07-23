@@ -1,5 +1,4 @@
-#define ANUMKIND 1
-#define NATMKIND 2
+#include "parameters.h"
 module h5_file_info
     use h5d
     use hdf5

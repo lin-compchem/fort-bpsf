@@ -1,6 +1,5 @@
 ! This pragma is the atomic number integer kind
-#define ANUMKIND 1
-#define NATMKIND 2
+#include "parameters.h"
 program save_bp_symfuncs
    use bp_symfuncs
    use hdf5

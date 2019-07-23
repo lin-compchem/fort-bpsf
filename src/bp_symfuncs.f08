@@ -1,12 +1,11 @@
 ! This pragma is the atomic number integer kind
-#define ANUMKIND 1
-#define NATMKIND 2
+#include "parameters.h"
 module bp_symfuncs
     implicit none
     integer, parameter :: dp = selected_real_kind(15,300)
 
     real(8), parameter :: pi = 4 * atan(1.0d0)
-    integer, parameter :: max_bas = 150
+    integer, parameter :: max_bas = MAXBAS
     logical, parameter :: calc_grad = .true.
     !TODO: Check for good value for max_bas
 
@@ -1241,7 +1240,7 @@ subroutine read_elements()
 
         do at=1, num_angles(el)
             read(inf, '(A400)', err=210) line
-            read(line, *) words(1:3)
+            read(line, *, err=212) words(1:3)
             call to_lower(words(1))
             if (words(1)(1:5) .ne. 'angle') goto 210
             read(words(2), *, err=215) ang_types(1, at, el)
@@ -1295,6 +1294,9 @@ subroutine read_elements()
     stop 'read_elements 11'
 
 210 print *, 'Error starting angle section. Looking for "angle" in line'
+    stop 'read_elements 12'
+
+212 print *, 'Error reading words on angle line. Looking for "angle" in line'
     stop 'read_elements 12'
 
 215 print *, 'Error reading 2 atomic numbers for angle type after "angle" keyword'

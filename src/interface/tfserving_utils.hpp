@@ -1,5 +1,3 @@
-#define PORT 8504
-#define MODEL_NAME "full_basis"
 /* This file contains utility functions for working with tensorflow-serving
  * models.
  *
@@ -58,8 +56,11 @@ class TFServer {
     void print_el_basis(double *basis, int max_bas, int max_atom, int num_bas,
                     int num_atom);
     void subWriter(rapidjson::Writer<rapidjson::GenericStringBuffer<rapidjson::UTF8<char>, rapidjson::CrtAllocator>, rapidjson::UTF8<char>, rapidjson::UTF8<char>, rapidjson::CrtAllocator, 0u>& writer);
+    void write_bas2mol(int num_el, int *num_atom, rapidjson::Writer<rapidjson::GenericStringBuffer<rapidjson::UTF8<char>, rapidjson::CrtAllocator>, rapidjson::UTF8<char>, rapidjson::UTF8<char>, rapidjson::CrtAllocator, 0u>& writer); 
+    void write_el_basis(double *basis, int max_bas, int max_atom, int num_bas,
+                    int num_atom, rapidjson::Writer<rapidjson::GenericStringBuffer<rapidjson::UTF8<char>, rapidjson::CrtAllocator>, rapidjson::UTF8<char>, rapidjson::UTF8<char>, rapidjson::CrtAllocator, 0u>& writer);
+    void send_basis(const char *json, double &energy);
 };
-
 //
 // C Interface
 //

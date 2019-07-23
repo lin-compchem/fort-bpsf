@@ -1,5 +1,7 @@
+#include "../parameters.h"
 module libtfserver
     use iso_c_binding
+    implicit none
     public :: tfserver
 
     ! Include the fortran-c interface function definitions
@@ -7,7 +9,7 @@ module libtfserver
     ! C function definition for the TFServing object
     ! Functions are in tfserving_utils_capi.cpp
     interface
-        ! 
+        !
         ! Constructor
         function create_tfserver_c(port, model_name) bind(C, name="create_tfserver")
             use iso_c_binding
@@ -15,7 +17,7 @@ module libtfserver
             integer(c_int), value :: port
             character(kind=c_char,len=1) :: model_name
         end function
-        ! 
+        !
         ! Destructor
         subroutine delete_tfserver_c(tfserver) bind (C, name="delete_tfserver")
             use iso_c_binding
@@ -104,7 +106,7 @@ contains ! Implementation of the functions, we just wrap the C function here
         real(kind=8), intent(out) :: energy ! energy of calculation
 
         call bpsf_energy_c(tfs%ptr, basis, max_bas, max_atoms, &
-           num_bas, num_of_els, num_els, energy) 
+           num_bas, num_of_els, num_els, energy)
     end subroutine bpsf_energy
 
     subroutine model_test1(tfs)
@@ -112,5 +114,47 @@ contains ! Implementation of the functions, we just wrap the C function here
         class(tfserver) :: tfs
         call model_test1_c(tfs%ptr)
     end subroutine model_test1
+
+    ! This subroutine is a wrapper subroutine that accepts coordinates and
+    !   returns whatever
+    subroutine wrap_bpsf(tfs, coordinates, num_atoms, atomic_numbers, energy, &
+            gradient)
+        use bp_symfuncs, only: calc_bp, num_els, max_bas, radbas_length, angbas_length
+        !
+        ! I/O Variables
+        !
+        class(tfserver), intent(in) :: tfs
+        integer*NATMKIND, intent(in) :: num_atoms
+        integer*ANUMKIND, intent(in) :: atomic_numbers(num_atoms)
+        real(kind=8), intent(in) :: coordinates(3, num_atoms)
+        real(kind=8), intent(out) :: energy
+        real(kind=8), intent(out), optional :: gradient
+        !
+        ! Local Variables
+        !
+        integer :: g_num_of_els(2) = [0,0]
+        real*8, dimension(max_bas, num_atoms, num_els) :: rad_bas, ang_bas
+        real*8, dimension(3, num_atoms, max_bas, num_atoms, num_els) :: rad_grad, ang_grad
+        integer el
+        integer(kind=4) max_atoms
+        max_atoms = num_atoms
+        !integer el
+        call calc_bp(num_atoms, coordinates, atomic_numbers, rad_bas, ang_bas, &
+                     rad_grad, ang_grad, max_atoms, g_num_of_els)        
+
+        ! Concatenate the basis functions into the radbas array
+        do  el=1, num_els
+           rad_bas(radbas_length(el)+1:radbas_length(el)+angbas_length(el),:g_num_of_els(el),el) = &
+               ang_bas(:angbas_length(el),:g_num_of_els(el),el)
+        enddo
+    
+        ! Send the concated basis to the server
+        call tfs%sendBPSF(rad_bas, max_bas, max_atoms, radbas_length(:) + &
+            angbas_length(:), g_num_of_els, num_els, energy)
+  
+        if (present(gradient)) then
+            stop "I shouldn't be here"
+        endif
+    end subroutine wrap_bpsf
 end module libtfserver
 

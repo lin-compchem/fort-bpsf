@@ -9,6 +9,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <iostream>
+#include <fstream>
 #include <stdlib.h>
 // Program includes
 #include "tfs_messages.hpp"
@@ -101,45 +102,32 @@ void TFServer::sendBPSF(double *basis, int *max_bas, int *max_atom,
 
     // Inititialize basis keys
     string basis_keys[2] = {"h_basis", "o_basis"};
+
+    // This is the main object
     writer.StartObject();
-    writer.Key("input");
-    writer.StartObject();
+    writer.Key("inputs"); // Object for list of input tensors
+    writer.StartObject(); // Everything below is corresponds to 'inputs' key
+    
+    cout << num_el[0] << endl;; 
+    // This is the basis object 
     for (int i=0; i < num_el[0]; ++i) {
+        int j = i * *max_bas * *max_atom;
         writer.Key(basis_keys[i].c_str());
-        writer.StartArray();
-        for (int j=0; j < num_el[0]; ++j) {
-            writer.Int(j);
-        }
-        writer.EndArray();
+        cout << "Wrote " << basis_keys[i] << endl;; 
+        writer.StartArray(); // Begin of array for key basis
+        write_el_basis(&basis[j], max_bas[0], max_atom[0], num_bas[i],
+               num_atom[i], writer);
+        writer.EndArray(); // end of array for key basis
     }
-    writer.EndObject();
-    writer.EndObject();
-    // First we need to write the basis
-    //writer.StartObject();
-    //writer.Key("input");
-    //for(int i=0; i < num_el[0]; ++i) { // For each element write the basis
-    //    writer.StartObject();
-    //    writer.Key(basis_keys[i].c_str());
-    //    writer.StartArray();
-    //       //    subWriter(writer);
-    //       cout << "a\n";
-    //       //writer.StartArray();
-    //       cout << "b\n";
-    //       for (int j = 0; j < 3; ++j) {
-    //           writer.Int(j);
-    //       }
-    //       cout << "c\n";
-    //       //writer.EndArray();
-    // 
-    // 
-    // 
-    //    writer.EndArray();
-    //cout << outstr.GetString() << endl;
-    //    writer.EndObject();
-    //cout << outstr.GetString() << endl;
-    //}
-    //writer.EndObject();
+    // Write the bas2mol keys
+    write_bas2mol(num_el[0], num_atom, writer);
+
+    //Sanity check for debugging
+
+    writer.EndObject(); // End inputs object
+    writer.EndObject(); // End main object
     cout << outstr.GetString() << endl;
+    send_basis(outstr.GetString(), energy[0]);
     //print_basis(basis, max_bas, max_atom, num_bas, num_atom, num_el);
     cout << "END SENDBPSF" << endl;
     exit(EXIT_FAILURE);
@@ -289,5 +277,67 @@ void TFServer::print_el_basis(double *basis, int max_bas, int max_atom,
         }
     }
 }
+//
+// Write the basis set to the writer for a given element
+void TFServer::write_el_basis(double *basis, int max_bas, int max_atom,
+        int num_bas, int num_atom, Writer<StringBuffer> &writer) {
+    int i, j, idx;
+    int basis_counter = 0;
+    for (i=0; i < num_atom; ++i) {
+        basis_counter = i * max_bas;
+        writer.StartArray();
+        for (j=0; j < num_bas; ++j){
+            idx = basis_counter + j;
+            writer.Double(basis[idx]);
+        }
+        writer.EndArray();
+    }
+}
+//
+// Input:
+// 
+void TFServer::write_bas2mol(int num_el, int *num_atom, Writer<StringBuffer> &writer) {
+//void TFServer::write_bas2mol(int num_el, int *num_atom, Writer<GenericStringBuffer<UTF8<char>, CrtAllocator>, UTF8<char>, UTF8<char>, rapidjson::CrtAllocator, 0u>& writer) {
+    string b2m_keys[2] = {"h_bas2mol", "o_bas2mol"}; 
+    for (int el=0; el < num_el; ++el) {
+        writer.Key(b2m_keys[el].c_str());
+        writer.StartArray();
+        for (int atom=0; atom < num_atom[el]; ++atom) {
+           writer.Int(0); 
+        }
+        writer.EndArray();     
+    } 
+    return;
+}
+//
+// Curl the basis 
+void TFServer::send_basis(const char *json, double &energy) {
+    bool verbose = true;  // This should be changed to class level variable
+    string url = get_predict_uri(); 
+    if (verbose) {
+        cout << "Performing Prediction" << endl;
+        cout << "Prediction URL: " << url << endl;
+    }
 
+    /// Send the json string to the server
+    Curler post_curl;
+    post_curl.setURL(url.c_str());
+    post_curl.httpPost(json);
+   
+    // Print out the response 
+    if (verbose) {
+        cout << "Results of POST:" << endl;
+        cout << post_curl.curl_buffer;
+    }
+
+    // Parse the response into the document
+    Document document;
+    document.Parse(post_curl.curl_buffer.c_str());
+
+    if (!document.HasMember("outputs")) {
+        cerr << "Error, cannot read 'outputs' field in POST response" << endl;
+        exit(EXIT_FAILURE);
+    }
+
+}
 
