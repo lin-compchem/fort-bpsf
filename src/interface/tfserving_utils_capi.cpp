@@ -2,10 +2,10 @@
  * This file contains the function definitions for the capi for the TFServer
  * class
  */
+#include "../parameters.h"
 #include "tfserving_utils.hpp"
 #include <iostream>
 
-#define DEBUG
 
 using namespace std;
 
@@ -30,9 +30,23 @@ void delete_tfserver(TFSERVER* tfserver) {
 void tfs_bpsf_energy(TFSERVER* tfserver,  double *basis, int *max_bas,
         int *max_atom, int *num_bas, int *num_atom, int *num_el,
         double *energy) {
+  #ifdef DEBUG
+    cout << "C API, Call sendBPSF Energy" << endl;
+  #endif 
     return tfserver->sendBPSF(
             basis, max_bas, max_atom, num_bas, num_atom, num_el, energy
             );
+}
+// Get the energy from the tensorflow server
+void tfs_bpsf_gradient(TFSERVER* tfserver,  double *basis, int *max_bas,
+        int *max_atom, int *num_bas, int *num_atom, int *num_el,
+        double *energy, double *gradient) {
+  #ifdef DEBUG
+    cout << "C API, Call sendBPSF Gradient" << endl;
+  #endif 
+    return tfserver->sendBPSF(
+            basis, max_bas, max_atom, num_bas, num_atom, num_el, energy,
+            gradient);
 }
 // This goes with 
 void tfs_model_test1(TFSERVER* tfserver) {

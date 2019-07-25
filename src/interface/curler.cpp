@@ -37,7 +37,8 @@ Curler::Curler() {
     // are generated
     code = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writer);
     if(code != CURLE_OK) {
-      cerr << "Failed to write function. Error message: " <<  errorBuffer;
+      cerr << "Failed to write function. Error message: " <<  errorBuffer 
+           << endl;
       exit(EXIT_FAILURE);
     }
     //// This is where the output from the request goes.
@@ -96,6 +97,7 @@ void Curler::httpGet() {
     code = curl_easy_perform(curl);
     if(code != CURLE_OK) {
         cerr <<  "Failed to perform HTTP GET\n Error buffer: " << errorBuffer;
+        cerr << endl;
         exit(EXIT_FAILURE);
     }
 }

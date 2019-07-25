@@ -15,7 +15,11 @@ class TFServer {
       // The below gets the energy
       void sendBPSF(double *basis, int *max_bas, int *max_atom,
               int *num_bas, int *num_atom, int *num_el, double *energy);
+      void sendBPSF(double *basis, int *max_bas, int *max_atom,
+              int *num_bas, int *num_atom, int *num_el, double *energy,
+              double *gradient);
       void ModelTest1();
+      bool verbose = true;
   private:
     int port; // Port for Rest API of Tensorflow Server
     std::string model_name; // Name for Rest API of Tensorflow Server
@@ -55,11 +59,18 @@ class TFServer {
     /* Print one element from the above function */
     void print_el_basis(double *basis, int max_bas, int max_atom, int num_bas,
                     int num_atom);
-    void subWriter(rapidjson::Writer<rapidjson::GenericStringBuffer<rapidjson::UTF8<char>, rapidjson::CrtAllocator>, rapidjson::UTF8<char>, rapidjson::UTF8<char>, rapidjson::CrtAllocator, 0u>& writer);
+    /*
+     *                              WRITERS
+     * The following subroutines are for writing the basis JSON strings
+     *
+     * This is the main driver routine:
+     */
+    std::string serialize_bpsf(double *basis, int *max_bas, int *max_atom,
+              int *num_bas, int *num_atom, int *num_el);
     void write_bas2mol(int num_el, int *num_atom, rapidjson::Writer<rapidjson::GenericStringBuffer<rapidjson::UTF8<char>, rapidjson::CrtAllocator>, rapidjson::UTF8<char>, rapidjson::UTF8<char>, rapidjson::CrtAllocator, 0u>& writer); 
     void write_el_basis(double *basis, int max_bas, int max_atom, int num_bas,
                     int num_atom, rapidjson::Writer<rapidjson::GenericStringBuffer<rapidjson::UTF8<char>, rapidjson::CrtAllocator>, rapidjson::UTF8<char>, rapidjson::UTF8<char>, rapidjson::CrtAllocator, 0u>& writer);
-    void send_basis(const char *json, double &energy);
+    std::string send_basis(const char *json);
 };
 //
 // C Interface
@@ -85,6 +96,10 @@ extern "C" {
     void tfs_bpsf_energy(TFSERVER* tfserver,  double *basis,int *max_bas,
         int *max_atom, int *num_bas, int *num_atom, int *num_el,
         double *energy);
+    
+    void tfs_bpsf_gradient(TFSERVER* tfserver,  double *basis,int *max_bas,
+        int *max_atom, int *num_bas, int *num_atom, int *num_el,
+        double *energy, double *gradient);
 
     // Test 1 goes with 7_tensorflow_server
     void tfs_model_test1(TFSERVER* tfserver);

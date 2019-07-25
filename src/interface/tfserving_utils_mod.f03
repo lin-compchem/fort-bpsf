@@ -42,6 +42,20 @@ module libtfserver
             integer(c_int), intent(in) :: num_of_els(num_els)! number of each element
             real(c_double), intent(out) :: energy ! energy of calculation
         end subroutine bpsf_energy_c
+        subroutine bpsf_gradient_c(tfserver, bas, max_bas, max_atoms, &
+                num_bas, num_of_els, num_els, energy, gradient)&
+                bind(C, name="tfs_bpsf_gradient")
+            use iso_c_binding
+            type(c_ptr), value :: tfserver
+            real(c_double), intent(in) :: bas(max_bas, max_atoms, num_els)
+            integer(c_int), intent(in) :: max_bas         ! dimension of basis array
+            integer(c_int), intent(in) :: max_atoms       ! dimension of basis array
+            integer(c_int), intent(in) :: num_bas(num_els)! number of basis functions for each el
+            integer(c_int), intent(in) :: num_els         ! total number elements
+            integer(c_int), intent(in) :: num_of_els(num_els)! number of each element
+            real(c_double), intent(out) :: energy ! energy of calculation
+            real(c_double), intent(inout) :: gradient(max_bas, max_atoms, num_els)
+        end subroutine bpsf_gradient_c
     end interface
 
     ! Use a fortran type to represent the c++ class in an opaque manner
@@ -62,6 +76,8 @@ module libtfserver
         final :: delete_tfserver ! Destructor
 #endif
         procedure :: sendBPSF => bpsf_energy
+        procedure :: gradBPSF => bpsf_gradient
+        procedure :: wrapBPSF => wrap_bpsf
         procedure :: modelTest1 => model_test1
     end type tfserver
 
@@ -93,7 +109,21 @@ contains ! Implementation of the functions, we just wrap the C function here
         call delete_tfserver_c(tfs%ptr)
     end subroutine delete_tfserver_polymorph
 
-    ! subroutine bpsf_energy(this)
+    subroutine bpsf_gradient(tfs, basis, max_bas, max_atoms, &
+            num_bas, num_of_els, num_els, energy, gradient)
+        class(tfserver), intent(in) :: tfs
+        real(kind=8), intent(in) :: basis(max_bas, max_atoms, num_els)
+        integer(kind=4), intent(in) :: max_bas         ! dimension of basis array
+        integer(kind=4), intent(in) :: max_atoms       ! dimension of basis array
+        integer(kind=4), intent(in) :: num_bas(num_els)! number of basis functions for each el
+        integer(kind=4), intent(in) :: num_of_els(num_els)! number of each element
+        integer(kind=4), intent(in) :: num_els         ! total number elements
+        real(kind=8), intent(out) :: energy ! energy of calculation
+        real(kind=8), intent(inout) :: gradient(max_bas, max_atoms, num_els)
+        call bpsf_gradient_c(tfs%ptr, basis, max_bas, max_atoms, &
+           num_bas, num_of_els, num_els, energy, gradient)
+    end subroutine bpsf_gradient
+
     subroutine bpsf_energy(tfs, basis, max_bas, max_atoms, &
             num_bas, num_of_els, num_els, energy)
         class(tfserver), intent(in) :: tfs
@@ -119,7 +149,8 @@ contains ! Implementation of the functions, we just wrap the C function here
     !   returns whatever
     subroutine wrap_bpsf(tfs, coordinates, num_atoms, atomic_numbers, energy, &
             gradient)
-        use bp_symfuncs, only: calc_bp, num_els, max_bas, radbas_length, angbas_length
+        use bp_symfuncs, only: calc_bp, num_els, max_bas, radbas_length, &
+            angbas_length, bas_length
         !
         ! I/O Variables
         !
@@ -128,33 +159,54 @@ contains ! Implementation of the functions, we just wrap the C function here
         integer*ANUMKIND, intent(in) :: atomic_numbers(num_atoms)
         real(kind=8), intent(in) :: coordinates(3, num_atoms)
         real(kind=8), intent(out) :: energy
-        real(kind=8), intent(out), optional :: gradient
+        real(kind=8), intent(out), optional :: gradient(3, num_atoms)
         !
         ! Local Variables
         !
         integer :: g_num_of_els(2) = [0,0]
         real*8, dimension(max_bas, num_atoms, num_els) :: rad_bas, ang_bas
         real*8, dimension(3, num_atoms, max_bas, num_atoms, num_els) :: rad_grad, ang_grad
-        integer el
+        integer el, b, a, g
+        integer s, e
         integer(kind=4) max_atoms
+        real(kind=8), allocatable :: nn_grad(:,:,:)
         max_atoms = num_atoms
+        gradient = 0 
         !integer el
         call calc_bp(num_atoms, coordinates, atomic_numbers, rad_bas, ang_bas, &
                      rad_grad, ang_grad, max_atoms, g_num_of_els)        
 
         ! Concatenate the basis functions into the radbas array
         do  el=1, num_els
-           rad_bas(radbas_length(el)+1:radbas_length(el)+angbas_length(el),:g_num_of_els(el),el) = &
-               ang_bas(:angbas_length(el),:g_num_of_els(el),el)
+            s = radbas_length(el) + 1
+            e = radbas_length(el) + angbas_length(el)
+            g = g_num_of_els(el)
+            ! TODO: Check that the gradient is catted correctly
+            rad_bas(s:e,:g,el) = ang_bas(:angbas_length(el),:g,el)
+            rad_grad(:,:,s:e,:,:) = ang_grad(:,:,:angbas_length(el),:,:)
         enddo
     
         ! Send the concated basis to the server
-        call tfs%sendBPSF(rad_bas, max_bas, max_atoms, radbas_length(:) + &
-            angbas_length(:), g_num_of_els, num_els, energy)
-  
         if (present(gradient)) then
-            stop "I shouldn't be here"
+            allocate(nn_grad(max_bas, num_atoms, num_els))
+            call tfs%gradBPSF(rad_bas, max_bas, max_atoms, radbas_length(:) + &
+                angbas_length(:), g_num_of_els, num_els, energy, nn_grad)
+        else
+            call tfs%sendBPSF(rad_bas, max_bas, max_atoms, radbas_length(:) + &
+                angbas_length(:), g_num_of_els, num_els, energy)
+            return
         endif
-    end subroutine wrap_bpsf
-end module libtfserver
 
+        !Do the tensor contraction to get the cartesian gradient
+        do el=1, num_els
+          do g=1, g_num_of_els(el)
+            do b=1, bas_length(el) 
+              do a=1, num_atoms
+                 gradient(:, a) = gradient(:, a) + nn_grad(b, g, el) * rad_grad(:,a,b,g,el) 
+              enddo
+            enddo 
+          enddo
+        enddo
+        
+    end subroutine wrap_bpsf
+end module libtfserver 

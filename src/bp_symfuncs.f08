@@ -21,6 +21,7 @@ module bp_symfuncs
 
     real(dp):: pi_div_Rc = 0.0d0
     integer, allocatable :: els(:)
+    integer, allocatable :: bas_length(:)
 
     ! Radial variables
     real(dp), allocatable :: eta(:,:,:)
@@ -1098,6 +1099,7 @@ subroutine setup_element_variables()
     implicit none
     pi_div_Rc = pi / Rc
     allocate(els(num_els))
+    allocate(bas_length(num_els))
     !
     ! Allocate the radial variables
     allocate(eta(max_etas, max_bonds, num_els))
@@ -1145,11 +1147,15 @@ subroutine setup_post_read()
         enddo
         radbas_length(el) = term
 
+    ! Calculate the number of angular basis functions for each element
         term = 0
         do type=1, num_angles(el)
             term = term + ang_size(type, el)
         enddo
         angbas_length(el) = term
+
+    ! The total size of the basis
+        bas_length(el) = radbas_length(el) + angbas_length(el)
     enddo
 
     ! Initialize the angle coefficients

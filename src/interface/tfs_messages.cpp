@@ -76,7 +76,11 @@ int ModelVersionStatus::parseDocument(){
         cerr << "Error, could not find \"version\" field in " << mmvs 
             << " array." << endl;
         exit(EXIT_FAILURE);
-    } 
+    }
+    if (!document[mmvs][0][mversion].IsString()) {
+        cerr << "Error parsing version" << endl;
+        exit(EXIT_FAILURE);
+    }
     version = document[mmvs][0][mversion].GetString();
     // Get the model state
     if (!document[mmvs][0].HasMember(mstate)) {
@@ -84,6 +88,10 @@ int ModelVersionStatus::parseDocument(){
             << " array." << endl;
         exit(EXIT_FAILURE);
     } 
+    if (!document[mmvs][0][mstate].IsString()) {
+        cerr << "Error parsing model state" << endl;
+        exit(EXIT_FAILURE);
+    }
     state = document[mmvs][0][mstate].GetString();
     // Get the model error code
     if (!document[mmvs][0][mstatus].HasMember(merror_code)) {
@@ -91,6 +99,10 @@ int ModelVersionStatus::parseDocument(){
             << " array." << endl;
         exit(EXIT_FAILURE);
     } 
+    if (!document[mmvs][0][mstatus][merror_code].IsString()) {
+        cerr << "Error parsing Error Code" << endl;
+        exit(EXIT_FAILURE);
+    }
     error_code = document[mmvs][0][mstatus][merror_code].GetString();
     // Get the model error message
     if (!document[mmvs][0][mstatus].HasMember(merror_message)) {
@@ -98,6 +110,10 @@ int ModelVersionStatus::parseDocument(){
             << " array." << endl;
         exit(EXIT_FAILURE);
     } 
+    if (!document[mmvs][0][mstatus][merror_message].IsString()) {
+        cerr << "Error parsing Error Message" << endl;
+        exit(EXIT_FAILURE);
+    }
     error_message = document[mmvs][0][mstatus][merror_message].GetString();
     
     if (verbose) {
@@ -130,20 +146,79 @@ void ModelVersionStatus::checkStatus() {
     if (verbose) { cout << "Model Status is GOOD!" << endl; }
 }
 
-//JSONWriter::JSONWriter() {
-//    cerr << "Initializing JSON WRITING" << endl;
-//    writer(outstr); 
-//	char key [] = "input";
-//    writer.StartObject();
-//    writer.Key(key);
-//    writer.StartArray();
-//    for(int i=0; i<3; ++i) {
-//        writer.Int(i);
-//    }
-//    writer.EndArray();
-//    cout << outstr.GetString() << endl;
-//    writer.EndObject();
-//    cout << outstr.GetString() << endl;
-//    cout << "HERE";
+
+EnGradMessage::EnGradMessage(string &json_string, bool verbose_flag) {
+    verbose = verbose_flag;
+    message = json_string;
+    initialize(json_string); 
+}
+//
+// This really doesn't do much except make sure that there is a 
+// field with 'outputs' in it
+//
+// The rest of the heavy lifitng is done when the user requests
+// an energy or gradient term
+int EnGradMessage::parseDocument() {
+    // Assert that there is an output!
+    if (!document.HasMember(mout)) {
+        cerr << "Error, could not read outputs in response from TensorFlow "
+             << "server" << endl;
+        exit(EXIT_FAILURE);
+    }
+    return 0;
+}
+//
+// Return the energy output
+//
+//double EnGradMessage::parseEnergy() {
+//    if (document[mout][0][0].IsDouble()) {
+//        return document[mout][0][0].GetDouble();
+//    } 
+//    cerr << "Error parsing energy from server response" << endl;
+//    printMessage();
 //    exit(EXIT_FAILURE);
 //}
+//
+// This just prints the server output
+void EnGradMessage::printMessage() {
+    cerr << "Message from server:" << endl;
+    cerr << message << endl;
+}
+//
+// Here we parse the basis, really it is an arbitrary array parser but we are
+// limited by having to select the right document object
+double EnGradMessage::parseEnergy() {
+    const char *name = mener.c_str();
+    checkOutput(name); 
+    if (!document[mout][name].IsArray()) {
+        cerr << "Energy with name " << name << "is not JSON array" << endl;
+    }
+    return document[mout][name][0][0].GetDouble(); 
+} 
+//
+// Here we're just looking to make sure the output field has a given object
+void EnGradMessage::checkOutput(const char *name) {
+    if (!document[mout].HasMember(name)) {
+        cerr << "Error looking for an output in response from "
+             << "TensorFlow server" << endl;
+        cerr << "Expected object with name: {outputs:{" << name << "}}"
+            << endl;
+        exit(EXIT_FAILURE);
+    }
+    return;
+} 
+//
+// Here we parse the basis, really it is an arbitrary array parser but we are
+// limited by having to select the right document object
+//void EnGradMessage::parseArray(const char* name, int x_size, int y_size) {
+//    if (!document[mout].HasMember(name)) {
+//        cerr << "Error, could not read gradient outputs in response from "
+//             << "TensorFlow server" << endl;
+//        cerr << "Expected object with name: {outputs:{" << name << "}}"
+//            << endl;
+//        exit(EXIT_FAILURE);
+//    }
+//    if (!document[mout][name].IsArray()) {
+//        cerr << "Basis with name " << name << "is not JSON array" << endl;
+//    }
+//} 

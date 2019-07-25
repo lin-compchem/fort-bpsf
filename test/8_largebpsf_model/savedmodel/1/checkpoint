@@ -1,6 +1,0 @@
-model_checkpoint_path: "allbf_000099"
-all_model_checkpoint_paths: "../models/allbf_000069"
-all_model_checkpoint_paths: "../models/allbf_000079"
-all_model_checkpoint_paths: "../models/allbf_000089"
-all_model_checkpoint_paths: "../models/allbf_000099"
-all_model_checkpoint_paths: "allbf_000099"

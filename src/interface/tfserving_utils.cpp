@@ -21,30 +21,33 @@
 #include <rapidjson/prettywriter.h>
 using namespace std;
 using namespace rapidjson;
-// Constructor
-//TFServer::TFServer(int set_port, char *set_model_name)
-//                       :port(set_port), model_name(set_model_name) {
+/*
+ * Constructor
+ */
 TFServer::TFServer(int set_port, char* my_model_name):port(set_port) {
-//TFServer::TFServer(int set_port):port(set_port) {
    model_name = my_model_name;
    start_interface();  
 }
-// Destructor
+/*
+ * Destructor
+ */
 TFServer::~TFServer() {
     end_interface();
 }
-//
-// This returns the URL for the model status, has information about whether
-// the model is running and if there is an error code.
+/*
+ * This returns the URL for the model status, has information about whether
+ * the model is running and if there is an error code.
+ */
 string TFServer::get_model_status_uri() {
     string uri = "http://localhost:";
     uri += to_string(port);
     uri += "/v1/models/" + model_name;
     return uri;
 }
-//
-// This returns the URL for the model status, has information about whether
-// the model is running and if there is an error code.
+/*
+ * This returns the URL for the model status, has information about whether
+ * the model is running and if there is an error code.
+ */
 string TFServer::get_predict_uri() {
     string uri = "http://localhost:";
     uri += to_string(port);
@@ -52,16 +55,18 @@ string TFServer::get_predict_uri() {
     uri += ":predict";
     return uri;
 }
-//
-// This returns the URI for the metadata, which has information about
-// what the name of the inputs and outputs for a given model are.
+/*
+ * This returns the URI for the metadata, which has information about
+ * what the name of the inputs and outputs for a given model are.
+ */
 string TFServer::get_metadata_uri() {
     string uri = "http://localhost:";
     uri += to_string(port);
     uri += "/v1/models/" + model_name + "/metadata";
     return uri;
 }
-/* Send a http GET request to the curl server URI
+/*
+ * Send a http GET request to the curl server URI
  * Then check the resulting message to make sure the server is running
  * as expected.
  */
@@ -78,7 +83,8 @@ void TFServer::check_tfs_status() {
     ModelVersionStatus status(stat_curl.curl_buffer, true);
     status.checkStatus();
 }
-/* Send a http GET request to the tensorflow serving metadata URL
+/* 
+ * Send a http GET request to the tensorflow serving metadata URL
  */
 void TFServer::get_tfs_metadata() {
     // Local variables
@@ -91,15 +97,70 @@ void TFServer::get_tfs_metadata() {
 
     // Check the return from the curl operation 
     cout << meta_curl.curl_buffer; 
-    //ModelVersionStatus status(meta_curl.curl_buffer, true);
-    //status.checkStatus();
 }
+/*
+ * This accepts the basis arrays and gets the energy and gradients
+ * from the tensorflow server
+ */
 void TFServer::sendBPSF(double *basis, int *max_bas, int *max_atom,
                    int *num_bas, int *num_atom, int *num_el, double *energy) {
-    cout << "SENT BASIS" << endl;
+    if (verbose) { cout << "Entering sendBPSF" << endl;}
+    // Write the JSON string to outstr 
+    string basis_json = serialize_bpsf(basis, max_bas, max_atom, num_bas,
+            num_atom, num_el);
+
+    // Send the string to the server and get the answer
+    string post_str = send_basis(basis_json.c_str());
+
+    // Parse the response with the messenger object
+    EnGradMessage engrad(post_str, true);
+    energy[0] = engrad.parseEnergy();
+    
+    if (verbose) {cout << endl << "Leaving sendBPSF" << endl;}
+    return;
+}
+/*
+ * This accepts the basis arrays and gets the energy and gradients
+ * from the tensorflow server
+ */
+void TFServer::sendBPSF(double *basis, int *max_bas, int *max_atom,
+                   int *num_bas, int *num_atom, int *num_el, double *energy,
+                   double *gradient) {
+    if (verbose) { cout << "Entering sendBPSF" << endl;}
+    // Write the JSON string to outstr 
+    string basis_json = serialize_bpsf(basis, max_bas, max_atom, num_bas,
+            num_atom, num_el);
+
+    // Send the string to the server and get the answer
+    string post_str = send_basis(basis_json.c_str());
+
+    // Parse the response with the messenger object
+    EnGradMessage engrad(post_str, true);
+    energy[0] = engrad.parseEnergy();
+    // Gradient
+    string gnames[2] = {"h_basis_grad", "o_basis_grad"};
+    for (int i=0; i < num_el[0]; ++i) {
+        int s = i * *max_bas * max_atom[0];
+        for(int j=0; j < num_atom[i]; ++j) { 
+            int b = j * max_bas[0] + s;
+            for (int k=0; k < num_bas[i]; ++k) {
+                int idx = b + k;
+               gradient[idx] = engrad.document["outputs"][gnames[i].c_str()][j][k].GetDouble(); 
+            }
+        }
+    }
+    
+    if (verbose) {cout << endl << "Leaving sendBPSF" << endl;}
+    return;
+}
+/*
+ * Take the basis arrays and serialize them into  JSON STring
+ */
+string TFServer::serialize_bpsf(double *basis, int *max_bas, int *max_atom,
+                   int *num_bas, int *num_atom, int *num_el) {
     StringBuffer outstr; // This holds the JSON string while the writer writes
     Writer<StringBuffer> writer(outstr); // Wites JSON String
-
+   
     // Inititialize basis keys
     string basis_keys[2] = {"h_basis", "o_basis"};
 
@@ -107,13 +168,11 @@ void TFServer::sendBPSF(double *basis, int *max_bas, int *max_atom,
     writer.StartObject();
     writer.Key("inputs"); // Object for list of input tensors
     writer.StartObject(); // Everything below is corresponds to 'inputs' key
-    
-    cout << num_el[0] << endl;; 
-    // This is the basis object 
+ 
+    // This is the basis object
     for (int i=0; i < num_el[0]; ++i) {
         int j = i * *max_bas * *max_atom;
         writer.Key(basis_keys[i].c_str());
-        cout << "Wrote " << basis_keys[i] << endl;; 
         writer.StartArray(); // Begin of array for key basis
         write_el_basis(&basis[j], max_bas[0], max_atom[0], num_bas[i],
                num_atom[i], writer);
@@ -126,25 +185,14 @@ void TFServer::sendBPSF(double *basis, int *max_bas, int *max_atom,
 
     writer.EndObject(); // End inputs object
     writer.EndObject(); // End main object
-    cout << outstr.GetString() << endl;
-    send_basis(outstr.GetString(), energy[0]);
-    //print_basis(basis, max_bas, max_atom, num_bas, num_atom, num_el);
-    cout << "END SENDBPSF" << endl;
-    exit(EXIT_FAILURE);
-}
-
-//void TFServer::subWriter(rapidjson::Writer<rapidjson::GenericStringBuffer<rapidjson::UTF8<char>, rapidjson::CrtAllocator>, rapidjson::UTF8<char>, rapidjson::UTF8<char>, rapidjson::CrtAllocator, 0u> &writer, StringBuffer& outstr) {
-void TFServer::subWriter(Writer<rapidjson::StringBuffer> &writer) {
-    cout << "a\n";
-    //writer.StartArray();
-    cout << "b\n";
-    for (int i = 0; i < 3; ++i) {
-        writer.Int(i);
+    
+    // For debugging
+    if (verbose) {
+        cout << "Serialized basis:" << outstr.GetString() << endl;
     }
-    cout << "c\n";
-    //writer.EndArray();
-}
 
+    return outstr.GetString();
+}
 //
 // This tesets the input structure for the bpnn with fake data.
 void TFServer::ModelTest1() {
@@ -310,9 +358,8 @@ void TFServer::write_bas2mol(int num_el, int *num_atom, Writer<StringBuffer> &wr
     return;
 }
 //
-// Curl the basis 
-void TFServer::send_basis(const char *json, double &energy) {
-    bool verbose = true;  // This should be changed to class level variable
+// Send and arbitrary outstring to the TensorflowServing server 
+string TFServer::send_basis(const char *json) {
     string url = get_predict_uri(); 
     if (verbose) {
         cout << "Performing Prediction" << endl;
@@ -330,14 +377,6 @@ void TFServer::send_basis(const char *json, double &energy) {
         cout << post_curl.curl_buffer;
     }
 
-    // Parse the response into the document
-    Document document;
-    document.Parse(post_curl.curl_buffer.c_str());
-
-    if (!document.HasMember("outputs")) {
-        cerr << "Error, cannot read 'outputs' field in POST response" << endl;
-        exit(EXIT_FAILURE);
-    }
-
+    return post_curl.curl_buffer;
 }
 

@@ -75,24 +75,27 @@ class ModelVersionStatus: public JSON_Message {
         int parseDocument(); 
         void printStatus();
 };
+//
+//
+class EnGradMessage: public JSON_Message {
+    public:
+        // General Vars
+        const char my_name[24] = "Energy/Gradient Results"; // Name of message for error messages
+        EnGradMessage(std::string &json_string, bool verbose_flag=false);
+        double parseEnergy();
+        void checkOutput(const char *name);
+    private:
+        std::string message; // The message that this class is initialized with
+
+        // Message constants:
+        const char mout[8] = "outputs";
+        std::string mener = "correction_energies",
+                    mhgrad = "h_basis_grad",
+                    mograd = "o_basis_grad";
+
+        // Member functions
+        int parseDocument(); 
+        void printMessage();
+        void parseDoubles();
+};
 #endif
-//#ifndef TFS_WRITER
-//#define TFS_WRITER
-/*
- * WRITE JSON VARIABLES
- *
- * The following subroutines are for serializing data structures into
- * JSON strings
- */
-//class JSONWriter {
-//  public:
-//    rapidjson::StringBuffer outstr;
-//    rapidjson::Writer<rapidjson::StringBuffer, rapidjson::UTF8<char>,
-//	                      rapidjson::UTF8<char>, NULL,
-//	                      0> writer;
-//    // Member functions
-//    JSONWriter();
-// private:
-//    int a;
-//};
-//#endif
