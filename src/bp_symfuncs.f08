@@ -61,6 +61,8 @@ module bp_symfuncs
 
     ! used to copy over to ohter variable
     character(len=:), allocatable :: h5_path_cache
+    ! h5 key value for cartesian gradients
+    character(len=:), allocatable :: grad_key
 
     type basis
         ! The basis functions. First dimension corresponds to atom, second dim
@@ -664,6 +666,7 @@ subroutine calc_angbas(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     ! Intermediary variables for calculating angular basis functions
     real*8 :: mycos, myexp, myfc,  mydcos(3,3)
     real*8 :: mya(max_ezl), myb(max_ezl)
+    real*8 :: da(3), db(3)
     real*8 :: mydfc(3,3), mydexp(3,3)
     integer l, m
     nang = ang_size(type, e)
@@ -683,19 +686,68 @@ subroutine calc_angbas(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     !
     ! Calculate the derivatives with respect to fc
     !
+    !
+    ! NOTE THERE SHOULD BE MULTIPLICATION BY dfc for cosine and gaussian angle derivative terms!!!!
+    !
     do l=1, 3           ! l is counter for looping over i, j, k
        do m=1, nang     ! m is counter for looping over eta zeta lam tuples
         ee = etzetlam(m,1,type,e)
         zz = etzetlam(m,2,type,e)
         ll = etzetlam(m,3,type,e)
+        ! Derivative with respect to FC
         tmp_dang(:,m,l) = mya(m) * myb(m) * mydfc(:,l)
-        tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
-            myb(m) * -2 * ee * (rij(i,j) + rij(i,k) + rij(j,k)) * mydexp(:,l)
-        tmp_dang(:,m,l) = tmp_dang(:,m,l) + &
-            zz * ll * (1 + ll * mycos) ** (zz - 1) * mydcos(:,l)
+        ! Derivative with respect to gaussian function 
+        db = myb(m) * -2 * ee * (rij(i,j) + rij(i,k) + rij(j,k)) * mydexp(:,l)
+        tmp_dang(:,m,l) = tmp_dang(:,m,l) + mya(m) * myfc * db(:)
+        ! Derivative with respect to cosine term
+        da = zz * ll * (1 + ll * mycos) ** (zz - 1) * mydcos(:,l)
+        tmp_dang(:,m,l) = tmp_dang(:,m,l) + myb(m) * myfc * da(:)
+        ! Finish out by mulitplying by the 2^-zeta    
         tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m,type,e)
+
+
+#ifdef DEBUGANG
+    ! Note, the equations that produce these values are hardcoded in. This
+    ! could be changed in the future
+   !$OMP CRITICAL 
+    if (l.eq.1) print *, "FOR X DIRECTION"
+    if (l.eq.2) print *, "FOR Y DIRECTION"
+    if (l.eq.3) print *, "FOR Z DIRECTION"
+    print 1, 'eta', ee
+    print 1, 'zeta', zz
+    print 1, 'lambda', ll
+    print 5, 'rij, fcij', rij(i,j), fc(i,j)
+    print 5, 'rik, fcik', rij(i,k), fc(i,k)
+    print 5, 'rjk, fcjk', rij(j,k), fc(j,k)
+    print 1, 'cosine', mycos
+    print 5, 'drijdi', drijdx(:,i,j)
+    print 5, 'drijdj', drijdx(:,j,i)
+    print 5, 'drikdi', drijdx(:,i,k)
+    print 5, 'drikdk', drijdx(:,k,i)
+    print 5, 'drjkdj', drijdx(:,j,k)
+    print 5, 'drjkdk', drijdx(:,k,j)
+    print 1, 'gauss term', myb(m)
+    print 1, 'dgauss di',db(1)
+    print 1, 'dgauss dj',db(2)
+    print 1, 'dgauss dk',db(3)
+    print 1, 'cos term', mya(m)
+    print 1, 'dcos di',da(1) 
+    print 1, 'dcos dj',da(2) 
+    print 1, 'dcos dk',da(3) 
+    print 1, 'fc product', myfc
+    print 5, 'dfc di', mydfc(:,1) 
+    print 5, 'dfc dj', mydfc(:,2)
+    print 5, 'dfc dk', mydfc(:,3)
+    print 5, 'i final gradient', tmp_dang(1,m,l)
+    print 5, 'j final gradient', tmp_dang(2,m,l)
+    print 5, 'k final gradient', tmp_dang(3,m,l)
+1 format (A15,5x,ES15.8)
+5 format (A15,5x,3(ES15.8,3x))
+    !$OMP END CRITICAL
+#endif
        enddo
     enddo
+
 end subroutine calc_angbas
 !
 ! Calculate the cosine term and its derivative for the angular basis functions
@@ -980,6 +1032,8 @@ implicit none
             read(words(2), *, err=1450) timing_interval
         elseif (words(1)(1:7) .eq. ('verbose')) then
             read(words(2), *, err=1500) verbose
+        elseif (words(1)(1:16) .eq. 'parse_cart_grads') then
+            grad_key = trim(adjustl(line(17:)))
         elseif (words(1)(1:9) .eq. ('geom_file')) then
             if (.not. present(h5_path)) then
 print *, 'Warning: "geom_file" specified but subroutine was not called with',&
@@ -1032,7 +1086,8 @@ print *, 'Warning: "geom_file" specified but subroutine was not called with',&
               ' integer'
     stop 'read_input_header 11'
 
-!1550 print *, 'Error reading keyword geom_file string'
+!1550 print *, 'Error reading keyword "parse_cartesian_grads". Must be ',&
+!              'followed by hdf5 key for gradient'
 !    stop 'read_input_header 12'
 
 1600 print *, 'Error for line', line, 'Each keyword must have at least 2 words'

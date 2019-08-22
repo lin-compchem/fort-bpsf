@@ -2,7 +2,7 @@
 #
 # Run the executable!
 #
-ifi="./oh-cartgeom.h5"
+ifi="bp.inp"
 ofi="./oh-bpsf.h5"
 bin=../../bin/gen_symfuncs_debug
 cwd=`pwd`

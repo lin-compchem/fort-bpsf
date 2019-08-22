@@ -1,6 +1,4 @@
 
-#define int8
-
 #ifdef int8
 #define ANUMKIND 8
 #define NATMKIND 8

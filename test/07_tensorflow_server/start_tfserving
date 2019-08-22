@@ -4,19 +4,17 @@ MODEL_VERSION=1
 HOST=localhost
 PORT=8504
 GRPCPORT=8505
-running=true
+running=false
 
 ##############
 # This command starts an instance of tensorflow serving with the model in
 # This directory
 ##############
 echo "START THE SERVER"
-if [ running ]; then
-    echo "KOFEFE"
-    tensorflow_model_server --rest_api_port=8504 --model_base_path=/home/aduster/eclipse-workspace/fort-bpsf/test/7_tensorflow_server/savedmodel --model_name="full_basis" --port 8505
-else
-    echo "tensorflow_model_server --rest_api_port=8504 --model_base_path=/home/aduster/eclipse-workspace/fort-bpsf/test/7_tensorflow_server/savedmodel --model_name="full_basis" --port 8505"
-fi
+tensorflow_model_server --rest_api_port=8504 --model_base_path=/home/aduster/eclipse-workspace/fort-bpsf/test/7_tensorflow_server/simplemodel --model_name="full_basis" --port 8505 &
+tfs_pid=$!
+
+echo "tensorflow_model_server --rest_api_port=8504 --model_base_path=/home/aduster/eclipse-workspace/fort-bpsf/test/7_tensorflow_server/simplemodel --model_name="full_basis" --port 8505"
 
 ##############
 # This command gets the Model status
@@ -38,21 +36,4 @@ echo
 echo "METADATA"
 echo "GET http://${HOST}:${PORT}/v1/models/${MODEL_NAME}/metadata"
 GET http://${HOST}:${PORT}/v1/models/${MODEL_NAME}/metadata
-
-
-##############
-#
-##############
-##############
-#
-##############
-##############
-#
-##############
-##############
-#
-##############
-##############
-#
-##############
 

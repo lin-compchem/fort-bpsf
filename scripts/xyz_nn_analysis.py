@@ -21,7 +21,7 @@ import glob
 import os
 import h5py as h5
 import numpy as np
-import indicator_tools
+import misc_utils
 import time
 
 #%%
@@ -101,7 +101,7 @@ def main():
         args.out_stem += args.out_prefix + '-'
     args.in_folder += '/'
     out_type = "xyz"
-
+    max_atoms = args.max_atoms
     coordinates = True
     eigenspectra = False
 
@@ -112,7 +112,6 @@ def main():
     num_files = len(flist)
 
     # Make the h5py files
-    max_atoms = 151
     of_path = args.out_stem + "cartgeom.h5"
     ofi = h5.File(of_path, "w")
     dcoords = ofi.create_dataset("cartesian_coords", shape=(num_files,
@@ -146,7 +145,7 @@ def main():
 
         for i in range(chunk_size):
             tmp_natoms[i], tc, te, ta =  \
-                 indicator_tools.read_xyz2(flist[start + i])
+                 misc_utils.read_xyz2(flist[start + i])
             tmp_atmnum[i, :tmp_natoms[i]] = ta
             tmp_coords[i, :tmp_natoms[i], :] = tc
             tmp_elsym[i, :tmp_natoms[i]] = te

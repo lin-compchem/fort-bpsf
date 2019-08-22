@@ -45,9 +45,9 @@ program caller
 
     ! Print the result of the calculation
     print *, "The energy is: ", energy
-    print *, "The energy should be: 11.927280400000001"
+    print *, "The energy should be: 2.0176210399999999"
     
-    if (energy -  11.927280400000001 .gt. 1e-6) then
+    if (energy -  2.0176210399999999 .gt. 1e-6) then
         print *, "ERROR TEST FAILED"
     else
         print *, "TEST SUCCEEDED"

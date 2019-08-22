@@ -32,6 +32,7 @@ keepspaces=true,
 xleftmargin=\parindent,
 showstringspaces=false}
 \usepackage{multicol}
+\usepackage{enumitem}
 
 \begin{document}
 \title{Fort-BPsym Documentation}
@@ -85,7 +86,17 @@ The testing script should compile the program, and run it to generate the the ou
  It will then call the script \texttt{./test\_files/compare\_basis\_functions.py} to compare the elements of the newly generated basis functions with the file \texttt{./test\_files/reference.h5}. The script will output whether the reference elements are bigger, smaller, or equal to the newly generated one.
  
 \subsection{Input HDF5 Structure}
-This program requires the hdf5 file to have the folowing as top-level datasets. Note that max-atoms is a parameter that should be the same between all of the datasets and the dimensions are in row-major order (so should be backwards if this file is to be created by a FORTRAN program).
+This program requires the hdf5 file to have the folowing as top-level datasets.
+Note that max-atoms is a parameter that should be the same between all of the datasets and the dimensions are in row-major order (so should be backwards if this file is to be created by a FORTRAN program).
+Also note that the integer types for the atomic number and number of atoms must match the atom types in the file: \texttt{parameters.h}
+
+\subsection{Compilation Settings}
+\subsubsection{Default Integer Types}
+In the file \texttt{parameters.h} there are a few settings which change constants throughout compilation.
+One constant concerns the number of bits to use for the atomic number and number of atoms.
+As atomic numbers contain mostly small values, they can safely be represented by a 1 byte integer to reduce the amount of storage space they consume.
+Similarly, the number of atoms can be represented by a 1 or 2 byte integer depending on the maximum number of atoms in the systems.
+The type is determined by the NATMKIND and the ANUMKIND parameters.
 
 
 \begin{tabular}{| l | l | p{5.1cm} |}
@@ -302,6 +313,105 @@ This is implemented as and equivalent to:
 \frac{\partial \cos \theta_{ijk} } {\partial \mb{X}_i} = - \frac{\partial \cos \theta_{ijk} } {\partial \mb{X}_j} - \frac{\partial \cos \theta_{ijk} } {\partial \mb{X}_k}
 \end{equation}
 
+\section{Input File Format}
+
+For the input file, list all of the keywords. Then list the BPSF data as per the section \ref{bpsfinput}.
+
+\subsection{Keywords}
+
+\begin{description}[style=unboxed, labelwidth=\linewidth, font=\sffamily\itshape\bfseries , listparindent=0pt, before =\sffamily]
+
+\item[geom\_file (string)]
+The file path to the HDF5 file which contains geometries for calculating BPSF functions.
+This keyword has no effect in library mode, as the calling program will provide the geometries.
+
+\item[max\_angle (int)]
+The maximum number of angle types for BPSF calculations over all of the elements.
+
+\item[max\_bond (int)]
+The maximum number of bond types for BPSF calculations over all of the elements.
+
+\item[max\_eta\_zeta\_lam (int)]
+The maximum number of $\eta$, $\zeta$, and $\lambda$ triplets for all of the elements.
+This is the maximum angular basis length.
+
+\item[max\_rs\_eta (int)]
+The maximum number of $R_s$ and $\eta$ pairs for over all of the elements.
+This is the maximum radial basis length.
+
+\item[num\_els (int)]
+The number of elements for the BPSF calculations.
+
+\item[parse\_cart\_grads (string)]
+This keyword signals to the program to parse the cartesian gradients from the input file specified by the \texttt{geom\_file} keyword.
+Please provide the HDF5 key for the cartesian geometries in the file.
+The geometries must be stored in an array with dimensions [number of geometries, number of atoms, 3].
+
+\item[rc (float)]
+This is the $R_c$ cutoff parameter for the BPSF symmetry functions described in Equation \ref{eq:rad}.
+
+\item[timing\_interval (int)]
+This is the nuber of steps between timing ouptuts when calculating BPSFs from an input file.
+
+\item[verbose (str)]
+Print voluminous information. You must put any string after the keyword as all keywords must have 2 words. 
+
+\end{description}
+\subsection{BPSF Input}\label{bpsfinput}
+
+\section{Interface Module}
+The interface module consists of wrapper code for C++ libraries RapdiJSON and Libcurl.
+A C API wraps the TensorFlow Serving object class in the C++ code. 
+There is a FORTRAN interface connected to the C API which provides FORTRAN bindings for each of the functions in the C API.
+Through the C and FORTRAN APIs, the functionality of this code should be available to programs written in most languages.
+The FORTRAN API can be found in the source code \texttt{tfserving\_utils\_mod.f03} and the C API in \texttt{tfserving\_utils\_capi.cpp} .
+
+\subsection{Example of Interface via Fortran}
+Create an variable of the TFServing Object.
+
+\begin{lstlisting}[language=Fortran]
+use iso_c_env
+use libserving
+type(tfserving) :: tfs
+integer(c_int) :: port
+integer(kind=4) :: port2 ! Can use this if you don't want to use C vars
+character(len=:), allocatable :: model_name
+port = 8500
+model_name = "bpsf"
+! Initialize the fortran interface with this tfs object
+tfs\%initialize(port, model_name)
+! Call a function that wraps the BPSF calculation
+tfs\%wrapBPSF(coords)
+! Cleanup. Optional for ifort and GCC > 7.0
+tfs\%delete()
+\end{lstlisting}
+
+\subsection{Interface Subroutines}
+The following subro:qutines can be called by the Fortran interface:
+
+\section{Utility Scripts}
+\subsection{compare basis functions}
+Compares the basis functions between two HDF5 files.
+This is used extensively for debugging to ensure that the HDF5 files are the same as a given standard.
+
+\subsection{create input file}
+This subroutine parses an input file written in a more lax standard and ouptuts the BPSF section in the exact format that the FORTRAN program wants it.
+Therefore, this can be used in lieu of manually following the confusing specifications.
+
+\subsection{indicator tools}
+This contains helper functions
+
+\subsection{scan hdf5}
+This script performs a similar function to the command h5ls: it goes through an HDF5 file and prints out the keys and shapes for each dataset.
+
+\subsection{tf sym funcs}
+This very slow program is verified to produce the exact radial and angular basis functions for sets of atoms.
+The slowness of this program compelled the authors to write this code.
+
+\subsection{xyz nn analysis}
+Compresses a folder of \texttt{.xyz} files into an HDF5 file.
+
+
 \section{Tests}
 \subsection{Test 1 - Comparing answers with reference}
 
@@ -321,12 +431,62 @@ From equation \eqref{eq:rad_derivative}, the final answer can be calculated:
 
 $\frac{\partial G^2_{ij}}{\partial x} = -3.475089$
 
-\subsection{Test 3 - Calculation of the angular gradient}
+\subsection{Test 3 - Calculation of the Angular Gradient}
+Here, the angular gradient is calculated for a couple geometries.
+The "correct answers" for the output of the file should be here.
+
+\begin{center}
+\begin{tabular}{ |c|c| }
+Variable     & Value \\
+$X_i$        &  0.0 0.0 0.0 \\
+$X_j$        &  0.0 1.0 0.0 \\
+$X_k$        &  1.0 0.0 0.0 \\
+$\eta$       & 0.001 \\
+$\zeta$      & 1 \\
+$\lambda$    & -1 \\
+$\cos$       & 0 \\
+'gauss term' & 9.884108 \\
+dgauss di    & 6.74929E-3 \\
+dgauss dj    & 6.74929E-3 \\
+dgauss dk    & 0 \\
+cos term     & 1.0 \\
+fc product   & 0.855794 \\
+i final gradient & 0.917726 \\
+j final gradient & 0.917726 \\
+k final gradient & 0
+
+\end{tabular}
+\end{center}
+
 
 \subsection{Test 4 - Parallel Compare}
+The output of this file should be the same as the output of test 3.
 
 \subsection{Test 5 - Call as a library}
 This example shows code that uses FORT-BPSF as a library.
 
 \subsection{Test 6 - Call with JSON Interface}
+\subsection{Test 7 - }
+\subsection{Test 8 - }
+\subsection{Test 9 - }
+\subsection{Test 10 - }
+\subsection{Test 11 - }
+\subsection{Test 12 - Example of parse\_cart\_grad keyword}
+Here, the cartesian gradients are parsed from a benchmarking file with 1,000 geometries and energies, and added to the resulting \texttt{output.h5} file.
+
+\section{Developer's Guide}
+This section contains notes as to the inner workings of the program.
+It is only likely useful if someone needs to modify the program.
+
+\subsection{Coordinate, Atomic Number, and Num Atoms H5 Input}
+The HDF5 dataspaces for these files as well as the dimensions of these datasets are found in the \texttt{FI init from ifi} subroutine.
+The arrays are filled in the \texttt{FI get data} subroutine.
+The input file and data spaces are then closed in the \texttt{FI clean inputs} subroutine.
+
+\subsection{Atom Based Cartesian Gradients}
+This section behaves differently than the above data as the values parsed here are not needed for BPSF calculations.
+I thought it would be better to encapsulate all of these calls so that this can be later moved to after the BPSF calculation, or these could be written and removed from memory to save memory.
+The hdf5 dataspace is still opened in the subroutine \texttt{FI\_init\_from\_ifi}, but the rest of the parsing and closing of the data is done in the subroutine \texttt{FI\_get\_data}.
+
+
 \end{document}

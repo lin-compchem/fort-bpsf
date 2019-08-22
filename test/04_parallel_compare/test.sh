@@ -14,8 +14,9 @@ rm -rf *.h5 $bin
 
 cd ../../src
 make clean
+export ALL_FLAGS=-DDEBUGANG
 make all
 cd $cwd 
 
 echo "run the program"
-$bin $h5 $o5
+$bin bp.inp $o5

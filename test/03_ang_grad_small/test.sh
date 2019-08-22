@@ -6,7 +6,7 @@ delta=1e-4
 first=1oh.xyz
 second=2oh.xyz
 pre=h2o
-h5=${pre}-cartgeom.h5
+h5=bp.inp
 o5=${pre}-bpsf.h5
 bin=../../bin/gen_symfuncs_debug
 cwd=`pwd`
@@ -15,6 +15,7 @@ rm -rf *.h5 $bin
 
 cd ../../src
 make clean
+export ALL_FLAGS=-DDEBUGANG
 make debug
 cd $cwd 
 
@@ -22,7 +23,7 @@ printf "\n###############\nSTEP 1\n###############\n"
 echo "make the coordinate files"
 #python make_grad_coords.py -i $first -o $second
 cp ./ref_xyzs/${delta}/*.xyz ./ref_xyzs/
-../../scripts/xyz_nn_analysis.py --in_folder ./ref_xyzs --out_folder ./ --out_prefix ${pre}
+../../scripts/xyz_nn_analysis.py --in_folder ./ref_xyzs --out_folder ./ --out_prefix ${pre} --max_atoms 3
 
 printf "\n###############\nSTEP 2\n###############\n"
 echo "run the program"

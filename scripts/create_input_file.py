@@ -193,8 +193,14 @@ def rlist(ifi):
         if 'end' in line[:3]:
             break
         w = line.split()
-        for i in range(num_l):
-            dat[i].append(float(w[i]))
+        try:
+            for i in range(num_l):
+                dat[i].append(float(w[i]))
+        except:
+            sys.stderr.write("Error parsing section. Was it capped with an "
+                    "end statement?\n")
+            sys.stderr.write("line: " + line + '\n')
+            raise IOError
     return dat
 
 
@@ -356,7 +362,7 @@ def print_ifi(pars, els, ofi=sys.stdout):
 
     # Write the elements
     for e in els:
-        ofi.write(elline.format(e.atm_num, e.num_bonds, e.num_angles)
+        ofi.write(elline.format(e.atm_num, e.num_bonds, e.num_angles))
         # Write the bonds
         for bt in range(e.num_bonds):
             ofi.write(bdline.format(e.bond_type[bt]))
