@@ -72,7 +72,9 @@ module libtfserver
     !
 #ifdef __GNUC__
         procedure :: delete => delete_tfserver_polymorph
+        final :: delete_tfserver ! Destructor
 #else
+        procedure :: delete => delete_tfserver_polymorph
         final :: delete_tfserver ! Destructor
 #endif
         procedure :: sendBPSF => bpsf_energy

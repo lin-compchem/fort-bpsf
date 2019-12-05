@@ -55,6 +55,11 @@ Curler::Curler() {
             << endl;
       exit(EXIT_FAILURE);
     }
+    // From https://stackoverflow.com/questions/9191668/error-longjmp-causes-uninitialized-stack-frame
+    // We get errors when running QM/MM with AP and intel compiler if there
+    // is more than one OMP thread
+    long send=1;
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, send);
 }
 //
 //Here we need to clean up the curl operation and stuff

@@ -284,6 +284,7 @@ subroutine find_num_els(natm, atmnms, el_key, g_num_of_els, &
                 ! Error handling
                 if (el_found .eqv. .false.) then
                     print *, 'Error, could not find element in geom for atom',i
+                    print *, 'Element number: ', atmnms(i)
                     stop 'calc_bas 1'
                 endif
            enddo do_natoms

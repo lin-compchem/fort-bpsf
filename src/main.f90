@@ -30,7 +30,6 @@ program save_bp_symfuncs
                         num_geoms, FInum_of_els, mol_ids, mol2bas)
    call save_basis(rad_bas, ang_bas, num_els, mol_ids, mol2bas)
    call clean_up()
-   return
 end program save_bp_symfuncs
 
 
