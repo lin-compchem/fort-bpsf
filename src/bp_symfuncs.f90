@@ -1262,7 +1262,9 @@ subroutine read_elements()
     do while (io .eq. 0)
         read(inf, '(A400)', err=100, iostat=io) line
         call To_lower(line)
-        read(line, '(A400)') words(1)
+        read(line, *) words(1)
+        print *, line
+        print *, 'words', words(1)
         if (words(1)(:7) .eq. 'element') exit
     enddo
     if (io .ne. 0) goto 100

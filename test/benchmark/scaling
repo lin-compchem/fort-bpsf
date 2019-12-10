@@ -1,0 +1,5 @@
+1 thread: Loop iterations         100 Time:    121.98265075683594 
+2 thread: Loop iterations         100 Time:    62.138751983642578
+4 thread: Loop iterations         100 Time:    32.891376495361328
+8 thread: Loop iterations         100 Time:    18.047792434692383
+16      : Loop iterations         100 Time:    10.518934249877930 

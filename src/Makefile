@@ -13,10 +13,12 @@ ifeq ($(FC), gfortran)
 endif
 ifeq ($(FC), ifort)
     FFLAGS=-fpp -module $(MODDIR) -g
+    FFLAGS=-fpp -module $(MODDIR)
     ifneq ($(MAKECMDGOALS), serial)
         FFLAGS+= -qopenmp
     endif
     CFLAGS= -g
+    CFLAGS=
 	LIBS+=-L/opt/hdf5-intel-1.10.5/lib -lhdf5_fortran -I/opt/hdf5-intel-1.10.5/include
 endif
 LIBDIR= ../lib
