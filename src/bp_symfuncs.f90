@@ -41,7 +41,9 @@ module bp_symfuncs
 
     ! Angular Variables
     real(dp), allocatable :: &
-        etzetlam(:,:,:,:),& ! The eta/zeta/lambda variables. Array goes ([e,z,l],max_el,ang_type,el)
+        angeta(:,:,:), & ! Gaussian width for angular functions
+        angzeta(:,:,:), & ! Zeta variable for angular symmetry funcitons
+        anglam(:,:,:), & ! lamda variable for angular symmetry functions
         ang_coeff(:,:,:)    ! The coefficient
     integer, allocatable :: &
         num_etzetlam(:,:,:), & ! The number of eta/zeta/lambda
@@ -64,6 +66,8 @@ module bp_symfuncs
     ! h5 key value for cartesian gradients
     character(len=:), allocatable :: grad_key
 
+    ! flag for calculating various angle types.
+    character*10 :: angtype
     type basis
         ! The basis functions. First dimension corresponds to atom, second dim
         ! is the basis value
@@ -681,8 +685,8 @@ subroutine calc_angbas(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     !
     ! Calculation for the angular basis functions
     !
-    mya(:nang) = ( 1 + etzetlam(:nang,3,type,e) * mycos) ** etzetlam(:nang,2,type,e)
-    myb(:nang) = exp(-1 * etzetlam(:nang,1,type,e) * myexp)
+    mya(:nang) = ( 1 + anglam(:nang,type,e) * mycos) ** angzeta(:nang,type,e)
+    myb(:nang) = exp(-1 * angeta(:nang,type,e) * myexp)
     myang(:nang) = ang_coeff(:nang,type,e) * mya(:) * myb(:) * myfc
     !
     ! Calculate the derivatives with respect to fc
@@ -692,9 +696,9 @@ subroutine calc_angbas(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     !
     do l=1, 3           ! l is counter for looping over i, j, k
        do m=1, nang     ! m is counter for looping over eta zeta lam tuples
-        ee = etzetlam(m,1,type,e)
-        zz = etzetlam(m,2,type,e)
-        ll = etzetlam(m,3,type,e)
+        ee = angeta(m,type,e)
+        zz = angzeta(m,type,e)
+        ll = anglam(m,type,e)
         ! Derivative with respect to FC
         tmp_dang(:,m,l) = mya(m) * myb(m) * mydfc(:,l)
         ! Derivative with respect to gaussian function 
@@ -976,7 +980,7 @@ subroutine print_basis(el)
         print 50, ang_types(1, type, el), els(el), ang_types(2, type, el)
         print 60
         do i=1, ang_size(type, el)
-            print 70, etzetlam(i, :, type, el)
+            print 70, angeta(i, type, el), angzeta(i, type, el), anglam(i, type, el)
         enddo
     enddo
 end subroutine print_basis
@@ -1049,6 +1053,8 @@ print *, 'Warning: "geom_file" specified but subroutine was not called with',&
         !
         elseif (words(1)(1:7) .eq. ('element')) then
             exit
+        elseif (words(1)(1:9) .eq. 'angletype') then
+            read(words(2), *, err=1550) angtype
         else
             goto 1050
         endif
@@ -1086,7 +1092,9 @@ print *, 'Warning: "geom_file" specified but subroutine was not called with',&
 1500 print *, 'Error reading keyword "verbose". Must be followed by verbosity',&
               ' integer'
     stop 'read_input_header 11'
-
+1550 print *, 'Error reading keyword "angtype". Should be BP or AniAng',&
+              ' integer'
+    stop 'read_input_header 11'
 !1550 print *, 'Error reading keyword "parse_cartesian_grads". Must be ',&
 !              'followed by hdf5 key for gradient'
 !    stop 'read_input_header 12'
@@ -1183,8 +1191,12 @@ subroutine setup_element_variables()
     num_angles = 0
     allocate(ang_b_ind(max_angles, num_els))
     ang_b_ind = 0
-    allocate(etzetlam(max_ezl, 3, max_angles, num_els))
-    etzetlam = 0.0d0
+    allocate(angeta(max_ezl, max_angles, num_els))
+    allocate(angzeta(max_ezl, max_angles, num_els))
+    allocate(anglam(max_ezl, max_angles, num_els))
+    angeta = 0.0d0
+    angzeta = 0.0d0
+    anglam = 0.0d0
     allocate(ang_coeff(max_ezl, max_angles, num_els))
     ang_coeff = 0.0d0
 end subroutine setup_element_variables
@@ -1218,7 +1230,7 @@ subroutine setup_post_read()
     do el=1, num_els
         do type=1, num_angles(el)
             num_angs = ang_size(type,el)
-            ang_coeff(:num_angs,type,el) = 2 ** (1 - etzetlam(:num_angs, 2, type, el))
+            ang_coeff(:num_angs,type,el) = 2 ** (1 - angzeta(:num_angs, type, el))
         enddo
     enddo
 
@@ -1315,9 +1327,9 @@ subroutine read_elements()
             re = 0
             do while (words(1)(1:3) .ne. 'end')
                 re = re + 1
-                read(words(1), *, err=230) etzetlam(re, 1, at, el)
-                read(words(2), *, err=240) etzetlam(re, 2, at, el)
-                read(words(3), *, err=250) etzetlam(re, 3, at, el)
+                read(words(1), *, err=230) angeta(re, at, el)
+                read(words(2), *, err=240) angzeta(re, at, el)
+                read(words(3), *, err=250) anglam(re, at, el)
                 read(inf, '(A400)', iostat=io) line
                 if (io .ne. 0) goto 220
                 read(line, *, iostat=io) words(1:3)
