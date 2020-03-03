@@ -133,19 +133,23 @@ contains
         integer*8 :: begin_time, begin_loop
 
         bas_s(:) = 1
-        !!!! Con
+        !!!! Zero out the basis variables and allocate the temporaries
         do i=1, num_els
             ang_bas(i)%b(:,:) = 0.d0
             rad_bas(i)%b(:,:) = 0.d0
-            if (do_grad .eqv. .True.) then
-                rad_bas(1)%g(:,:,:,:) = 0.d0
-                ang_bas(1)%g(:,:,:,:) = 0.d0
-                allocate(tmp_rad_grad(3, max_atoms, max_bas, max_atoms, num_els))
-                allocate(tmp_ang_grad(3, max_atoms, max_bas, max_atoms, num_els))
-            endif
         enddo
         allocate(tmp_rad_bas(max_bas, max_atoms, num_els))
         allocate(tmp_ang_bas(max_bas, max_atoms, num_els))
+        !
+        ! Zero out the gradient variables and allocate the temp arrays
+        if (do_grad .eqv. .true.) then
+            do i=1, num_els
+                rad_bas(i)%g(:,:,:,:) = 0.d0
+                ang_bas(i)%g(:,:,:,:) = 0.d0
+            enddo
+            allocate(tmp_rad_grad(3, max_atoms, max_bas, max_atoms, num_els))
+            allocate(tmp_ang_grad(3, max_atoms, max_bas, max_atoms, num_els))
+        endif
         ! Calculate the vectors and rijs
         call tick(begin_time)
         call tick(begin_loop)
@@ -890,7 +894,9 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     ! Calculation for the angular basis functions
     !
     mytheta = acos(mycos)
-    mya(:nang) = ( 1 + cos(mytheta - angts(:nang,type,e))) ** angzeta(:nang,type,e)
+    ! Below differs from implentation in the paper because we multiply by two
+    ! In order to make the angle periodic
+    mya(:nang) = ( 1 + cos(2*(mytheta - angts(:nang,type,e)))) ** angzeta(:nang,type,e)
     myb(:nang) = exp(-1 * angeta(:nang,type,e) * ((rij(i,j) + rij(i,k))/2 - angrs(:nang, type, e))**2)
     myang(:nang) = ang_coeff(:nang,type,e) * mya(:) * myb(:) * myfc
     !
@@ -921,8 +927,8 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
         ! using compound angle formula, you have to take derivative of sin(theta)
         ! which would be 1 - cos(theta)**2
         !
-        ! First we take the derivative of cos(theta - theta_s)
-        da = sin(mytheta - ts) / sin(mytheta) * mydcos(:,l)
+        ! First we take the derivative of cos(2(theta - theta_s))
+        da = 2*sin(mytheta - ts) / sin(mytheta) * mydcos(:,l)
         da = zz * (1 + cos(mytheta - ts))**(zz - 1) * da
         tmp_dang(:,m,l) = tmp_dang(:,m,l) + myb(m) * myfc * da(:)
         ! Finish out by mulitplying by the 2^-zeta
