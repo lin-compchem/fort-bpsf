@@ -3,7 +3,7 @@ module h5_file_info
     use h5d
     use hdf5
     use h5s
-    use bp_symfuncs, only : basis, mol_id
+    use bp_symfuncs, only : basis, mol_id, do_grad
     implicit none
     ! Contains the h5 file data
  
@@ -278,14 +278,18 @@ subroutine allocate_arrays(rad_bas, ang_bas, atmnms, mol_ids, mol2bas)
     ! Rad basis
     do i=1, num_els
        rad_dims(:, i) = [radbas_length(i), Finum_of_els(i)]
-       radg_dims(:, i) = [3, max_atoms, radbas_length(i), Finum_of_els(i)]
        allocate(rad_bas(i)%b(rad_dims(1,i), rad_dims(2,i)))
-       allocate(rad_bas(i)%g(radg_dims(1,i), radg_dims(2,i), radg_dims(3,i), radg_dims(4,i)))
        ang_dims(:,i) = [angbas_length(i), Finum_of_els(i)]
-       angg_dims(:,i) = [3, max_atoms, angbas_length(i), Finum_of_els(i)]
        allocate(ang_bas(i)%b(ang_dims(1,i), ang_dims(2,i)))
-       allocate(ang_bas(i)%g(angg_dims(1,i), angg_dims(2,i), angg_dims(3,i), angg_dims(4,i)))
        allocate(mol_ids(i)%bas2mol(Finum_of_els(i)))
+
+       ! Allcoate the gradient arrays
+       if (do_grad .eqv. .true.) then
+           radg_dims(:, i) = [3, max_atoms, radbas_length(i), Finum_of_els(i)]
+           angg_dims(:, i) = [3, max_atoms, angbas_length(i), Finum_of_els(i)]
+           allocate(rad_bas(i)%g(radg_dims(1,i), radg_dims(2,i), radg_dims(3,i), radg_dims(4,i)))
+           allocate(ang_bas(i)%g(angg_dims(1,i), angg_dims(2,i), angg_dims(3,i), angg_dims(4,i)))
+       endif
     enddo
     b2m_dims(:) = Finum_of_els(:)
     m2b_dims(:) = [2, num_els, num_geoms]
@@ -447,28 +451,6 @@ subroutine save_basis(rad_bas, ang_bas, num_els, mol_ids, mol2bas)
         CALL h5sclose_f(dspace_id, error)
         if (error .ne. 0) goto 1015
     !
-    ! RADIAL Gradient
-    !
-       CALL h5screate_simple_f(4, radg_dims(:,i), dspace_id, error)
-       if (error .ne. 0) goto 1000
-    !
-    ! Create the dataset with default properties.
-    !
-        CALL h5dcreate_f(ofi, ofi_rgrad_names(i), H5T_NATIVE_DOUBLE , dspace_id, &
-           dset_id, error)
-        if (error .ne. 0) goto 1005
-    !
-    ! Write the data
-    !
-        CALL h5dwrite_f(dset_id, H5T_NATIVE_double, rad_bas(i)%g(:,:,:,:), radg_dims(:,i), error)
-        if (error .ne. 0) goto 1010
-    !
-    ! Close and release resources.
-    !
-        CALL h5dclose_f(dset_id , error)
-        CALL h5sclose_f(dspace_id, error)
-        if (error .ne. 0) goto 1015
-    !
     ! ANGULAR BASIS
     !
     ! h5screate_simple_f(rank, dims, dspace_id, error)
@@ -491,29 +473,53 @@ subroutine save_basis(rad_bas, ang_bas, num_els, mol_ids, mol2bas)
         CALL h5dclose_f(dset_id , error)
         CALL h5sclose_f(dspace_id, error)
         if (error .ne. 0) goto 1035
-    !
-    ! ANGULAR Gradient
-    !
-    ! h5screate_simple_f(rank, dims, dspace_id, error)
-       CALL h5screate_simple_f(4, angg_dims(:,i), dspace_id, error)
-       if (error .ne. 0) goto 1000
-    !
-    ! Create the dataset with default properties.
-    !
-        CALL h5dcreate_f(ofi, ofi_agrad_names(i), H5T_NATIVE_DOUBLE , dspace_id, &
-           dset_id, error)
-        if (error .ne. 0) goto 1005
-    !
-    ! Write the data
-    !
-        CALL h5dwrite_f(dset_id, H5T_NATIVE_double, ang_bas(i)%g(:,:,:,:), angg_dims(:,i), error)
-        if (error .ne. 0) goto 1010
-    !
-    ! Close and release resources.
-    !
-        CALL h5dclose_f(dset_id , error)
-        CALL h5sclose_f(dspace_id, error)
-        if (error .ne. 0) goto 1015
+        if (do_grad .eqv. .true.) then 
+        !
+        ! RADIAL Gradient
+        !
+           CALL h5screate_simple_f(4, radg_dims(:,i), dspace_id, error)
+           if (error .ne. 0) goto 1000
+        !
+        ! Create the dataset with default properties.
+        !
+            CALL h5dcreate_f(ofi, ofi_rgrad_names(i), H5T_NATIVE_DOUBLE , dspace_id, &
+               dset_id, error)
+            if (error .ne. 0) goto 1005
+        !
+        ! Write the data
+        !
+            CALL h5dwrite_f(dset_id, H5T_NATIVE_double, rad_bas(i)%g(:,:,:,:), radg_dims(:,i), error)
+            if (error .ne. 0) goto 1010
+        !
+        ! Close and release resources.
+        !
+            CALL h5dclose_f(dset_id , error)
+            CALL h5sclose_f(dspace_id, error)
+            if (error .ne. 0) goto 1015
+        !
+        ! ANGULAR Gradient
+        !
+        ! h5screate_simple_f(rank, dims, dspace_id, error)
+           CALL h5screate_simple_f(4, angg_dims(:,i), dspace_id, error)
+           if (error .ne. 0) goto 1000
+        !
+        ! Create the dataset with default properties.
+        !
+            CALL h5dcreate_f(ofi, ofi_agrad_names(i), H5T_NATIVE_DOUBLE , dspace_id, &
+               dset_id, error)
+            if (error .ne. 0) goto 1005
+        !
+        ! Write the data
+        !
+            CALL h5dwrite_f(dset_id, H5T_NATIVE_double, ang_bas(i)%g(:,:,:,:), angg_dims(:,i), error)
+            if (error .ne. 0) goto 1010
+        !
+        ! Close and release resources.
+        !
+            CALL h5dclose_f(dset_id , error)
+            CALL h5sclose_f(dspace_id, error)
+            if (error .ne. 0) goto 1015
+        endif
     !
     ! BAS2MOL
     !

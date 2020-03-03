@@ -44,9 +44,11 @@ module bp_symfuncs
         angeta(:,:,:), & ! Gaussian width for angular functions
         angzeta(:,:,:), & ! Zeta variable for angular symmetry funcitons
         anglam(:,:,:), & ! lamda variable for angular symmetry functions
+        angts(:,:,:), & ! Theta_s in ani paper, filter to this angle
+        angrs(:,:,:), & ! r_s in ani paper, look for angles at this distance
         ang_coeff(:,:,:)    ! The coefficient
+
     integer, allocatable :: &
-        num_etzetlam(:,:,:), & ! The number of eta/zeta/lambda
         ang_size(:,:), & ! The number of angular basis functions to calculate for each angle type
         angbas_length(:), & ! The total angular basis length for each element
         ang_types(:,:,:), & ! The ang types for each element
@@ -67,7 +69,14 @@ module bp_symfuncs
     character(len=:), allocatable :: grad_key
 
     ! flag for calculating various angle types.
-    character*10 :: angtype
+    enum, bind(C)
+        enumerator :: angenum = 0 ! the name of the enumerator
+        enumerator :: ANGT_BP !Use the traditional BP angular symmetry functions
+        enumerator :: ANGT_ANI !ANI stype with both radial and angular filters
+        enumerator :: ANGT_ANIANG !Use only the angular filter from the ani angular symmetry function
+    end enum
+
+    integer(kind(angenum)) :: angtype = ANGT_BP
     type basis
         ! The basis functions. First dimension corresponds to atom, second dim
         ! is the basis value
@@ -85,6 +94,7 @@ module bp_symfuncs
         integer*4, dimension(:), allocatable :: bas2mol
     end type mol_id
 
+    logical :: do_grad = .True.
 contains
     subroutine calculate_basis(rad_bas, ang_bas, coords, atmnms, natoms, &
                                max_atoms, num_geoms, num_of_els, mol_ids, &
@@ -110,8 +120,8 @@ contains
 
 
         !Basis sets to be reduced in openmp loops
-        real*8, dimension(max_bas, max_atoms, num_els) :: tmp_rad_bas, tmp_ang_bas
-        real*8, dimension(3, max_atoms, max_bas, max_atoms, num_els) :: tmp_rad_grad, tmp_ang_grad
+        real*8, allocatable, dimension(:,:,:) :: tmp_rad_bas, tmp_ang_bas
+        real*8, allocatable, dimension(:,:,:,:,:) :: tmp_rad_grad, tmp_ang_grad
         ! Number of atoms for a given element for a geometry
         integer :: g_num_of_els(num_els)
         integer :: natm
@@ -124,13 +134,18 @@ contains
 
         bas_s(:) = 1
         !!!! Con
-        rad_bas(1)%g(:,:,:,:) = 0.d0
-        rad_bas(2)%g(:,:,:,:) = 0.d0
-        ang_bas(1)%b(:,:) = 0.d0
-        ang_bas(2)%b(:,:) = 0.d0
-        ang_bas(1)%g(:,:,:,:) = 0.d0
-        ang_bas(2)%g(:,:,:,:) = 0.d0
-
+        do i=1, num_els
+            ang_bas(i)%b(:,:) = 0.d0
+            rad_bas(i)%b(:,:) = 0.d0
+            if (do_grad .eqv. .True.) then
+                rad_bas(1)%g(:,:,:,:) = 0.d0
+                ang_bas(1)%g(:,:,:,:) = 0.d0
+                allocate(tmp_rad_grad(3, max_atoms, max_bas, max_atoms, num_els))
+                allocate(tmp_ang_grad(3, max_atoms, max_bas, max_atoms, num_els))
+            endif
+        enddo
+        allocate(tmp_rad_bas(max_bas, max_atoms, num_els))
+        allocate(tmp_ang_bas(max_bas, max_atoms, num_els))
         ! Calculate the vectors and rijs
         call tick(begin_time)
         call tick(begin_loop)
@@ -146,17 +161,22 @@ save_basis: do i=1, num_els
             i_end = bas_s(i) + g_num_of_els(i) - 1
             rad_bas(i)%b(:,bas_s(i):i_end) = tmp_rad_bas(:radbas_length(i), &
                 :g_num_of_els(i), i)
-            rad_bas(i)%g(:,:,:,bas_s(i):i_end) = &
-                tmp_rad_grad(:, :, :radbas_length(i), :g_num_of_els(i), i)
             ang_bas(i)%b(:,bas_s(i):i_end) = tmp_ang_bas(:angbas_length(i), &
                 :g_num_of_els(i), i)
-            ang_bas(i)%g(:,:,:,bas_s(i):i_end) = &
-                tmp_ang_grad(:, :, :angbas_length(i), :g_num_of_els(i), i)
             mol_ids(i)%bas2mol(bas_s(i):i_end) = g - 1
             mol2bas(1:2,i,g) = [bas_s(i)-1, i_end]
             bas_s(i) = i_end + 1
         enddo save_basis
-
+  
+        if (do_grad .eqv. .true.) then
+save_grads: do i=1, num_els
+            i_end = bas_s(i) + g_num_of_els(i) - 1
+            rad_bas(i)%g(:,:,:,bas_s(i):i_end) = &
+                tmp_rad_grad(:, :, :radbas_length(i), :g_num_of_els(i), i)
+            ang_bas(i)%g(:,:,:,bas_s(i):i_end) = &
+                tmp_ang_grad(:, :, :angbas_length(i), :g_num_of_els(i), i)
+            enddo save_grads
+        endif
 
      ! Its time for time
         if (mod(g, timing_interval) .eq. 0) then
@@ -167,6 +187,12 @@ save_basis: do i=1, num_els
     enddo over_geoms
     t = tock(begin_time)
     print *, "Total time: ", t
+    deallocate(tmp_rad_bas)
+    deallocate(tmp_ang_bas)
+    if (do_grad .eqv. .True.) then
+        deallocate(tmp_rad_grad)
+        deallocate(tmp_ang_grad)
+    endif
 
     return
     end subroutine calculate_basis
@@ -310,9 +336,9 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
     !
     !Basis sets to be reduced in openmp loops
     !
-    real*8, dimension(max_bas, max_atom, num_els), intent(inout) :: &
+    real*8, optional, dimension(max_bas, max_atom, num_els), intent(inout) :: &
                                             rad_bas, ang_bas
-    real*8, dimension(3, max_atom, max_bas, max_atom, num_els), intent(inout) :: &
+    real*8, optional, dimension(3, max_atom, max_bas, max_atom, num_els), intent(inout) :: &
                                             rad_grad, ang_grad
     !
     ! Local Variables:
@@ -405,8 +431,13 @@ calc_ang: do x=1, num_cos
         if (i_type .eq. 0) cycle
 
         ! Calculate the basis for this angle
-        call calc_angbas(i, j, k, i_type, rij, drijdx, coords, natom, fc, &
+        if (angtype .eq. ANGT_BP) then
+            call calc_angbas(i, j, k, i_type, rij, drijdx, coords, natom, fc, &
                          dfcdx, myang, tmp_dang, el_key(i))
+        elseif (angtype .eq. ANGT_ANI) then
+            call calc_aniang(i, j, k, i_type, rij, drijdx, coords, natom, fc, &
+                         dfcdx, myang, tmp_dang, el_key(i))
+        endif
         call save_angbas(i, j, k, el_key(i), i_type, atom_basis_index(i), myang, tmp_dang,&
                          ang_bas, ang_grad, max_atom)
 
@@ -465,18 +496,23 @@ subroutine save_angbas(i, j, k, e, t, c, myang, tmp_dang, ang_bas, ang_grad, max
         b = a + d
         !$OMP ATOMIC UPDATE
         ang_bas(b, c, e) = ang_bas(b, c, e) + myang(a)
-        do l=1, 3
-        !
-        ! store the gradient
-        !
-            !$OMP ATOMIC UPDATE
-            ang_grad(l, i, b, c, e) = ang_grad(l, i, b, c, e) + tmp_dang(l,a,1)
-            !$OMP ATOMIC UPDATE
-            ang_grad(l, j, b, c, e) = ang_grad(l, j, b, c, e) + tmp_dang(l,a,2)
-            !$OMP ATOMIC UPDATE
-            ang_grad(l, k, b, c, e) = ang_grad(l, k, b, c, e) + tmp_dang(l,a,3)
-        enddo
     enddo
+    if (do_grad .eqv. .true.) then
+        do a=1, ang_size(t,e)
+            b = a + d
+            do l=1, 3
+            !
+            ! store the gradient
+            !
+                !$OMP ATOMIC UPDATE
+                ang_grad(l, i, b, c, e) = ang_grad(l, i, b, c, e) + tmp_dang(l,a,1)
+                !$OMP ATOMIC UPDATE
+                ang_grad(l, j, b, c, e) = ang_grad(l, j, b, c, e) + tmp_dang(l,a,2)
+                !$OMP ATOMIC UPDATE
+                ang_grad(l, k, b, c, e) = ang_grad(l, k, b, c, e) + tmp_dang(l,a,3)
+            enddo
+        enddo
+    endif
 end subroutine save_angbas
 !
 ! Calculate the smoothing function terms for the angular basis set calculations
@@ -491,15 +527,37 @@ subroutine calc_angfc(i, j, k, fc, dfcdx, natoms, myfc, mydfc)
 
 
     myfc = fc(i, j) * fc(i, k) * fc(j, k)
-    mydfc(:,1) = fc(j,k)*( fc(i,j)*dfcdx(:,i,k) + fc(i,k)*dfcdx(:,i,j) )
-    mydfc(:,2) = fc(i,k)*( fc(i,j)*dfcdx(:,j,k) + fc(j,k)*dfcdx(:,j,i) )
-    mydfc(:,3) = fc(i,j)*( fc(i,k)*dfcdx(:,k,j) + fc(j,k)*dfcdx(:,k,i) )
+    mydfc(:,1) = fc(j,k)*( fc(i,j)*dfcdx(:,i,k) + fc(i,k)*dfcdx(:,i,j) ) ! The ith atom derivatives
+    mydfc(:,2) = fc(i,k)*( fc(i,j)*dfcdx(:,j,k) + fc(j,k)*dfcdx(:,j,i) ) ! the jth atom derivatives
+    mydfc(:,3) = fc(i,j)*( fc(i,k)*dfcdx(:,k,j) + fc(j,k)*dfcdx(:,k,i) ) ! the kth atom derivatives
 end subroutine calc_angfc
+!
+! Calculate the smoothing function terms for the angular basis set calculations
+subroutine calc_aniangfc(i, j, k, fc, dfcdx, natoms, myfc, mydfc)
+    implicit none
+    integer, intent(in) :: i, j, k, natoms ! The indices for ith jth and kth atom
+    real(kind=8), intent(in):: &
+        fc(natoms, natoms),& ! The matrix of smoothing functions for each atom
+        dfcdx(3, natoms, natoms) ! The derivative of the above matrix wrt position
+    real(kind=8), intent(out) :: myfc, mydfc(3,3) ! The final fc term and dfc matrix. [xyz,atm123]
+
+    myfc = fc(i, j) * fc(i, k)
+    mydfc(:,1) = fc(i,j)*dfcdx(:,i,k) + fc(i,k)*dfcdx(:,i,j)! The ith atom derivatives
+    mydfc(:,2) = fc(i,k)*dfcdx(:,j,i) ! The jth atom derivatives
+    mydfc(:,3) = fc(i,j)*dfcdx(:,k,i) ! The kth atom derviatives
+end subroutine calc_aniangfc
+!
+! Calculate the angular exponent basis functions for the BP style angular ones
+!
 subroutine calc_angexp(i, j, k, rij, drijdx, natoms, myexp, mydexp)
     ! Begin
     ! The gaussian parts that don't depend on eta
     ! the myexp term is written with 2 different expressions. this is
     ! from the 2018 paper
+    !
+    ! NOTE the mydexp must be multiplied by 2 and the eta term in the
+    ! calling function!
+    !
     implicit none
     integer, intent(in) :: i, j, k, natoms ! The indices for ith jth and kth atom
     real(kind=8), intent(in):: &
@@ -511,6 +569,28 @@ subroutine calc_angexp(i, j, k, rij, drijdx, natoms, myexp, mydexp)
     mydexp(:,2) = drijdx(:,j,i) + drijdx(:,j,k)
     mydexp(:,3) = drijdx(:,k,i) + drijdx(:,k,j)
 end subroutine calc_angexp
+!
+! Calculate the angular exponent basis functions for the BP style angular ones
+!
+!subroutine calc_aniangexp(i, j, k, rij, drijdx, natoms, myexp, mydexp)
+!    ! Begin
+!    ! The gaussian parts that don't depend on eta
+!    ! the myexp term is written with 2 different expressions. this is
+!    ! from the 2018 paper
+!    !
+!    ! NOTE NOTE NOTE NOTE
+!    !
+!    implicit none
+!    integer, intent(in) :: i, j, k, natoms ! The indices for ith jth and kth atom
+!    real(kind=8), intent(in):: &
+!        rij(natoms, natoms),& ! The matrix of smoothing functions for each atom
+!        drijdx(3, natoms, natoms) ! The derivative of the above matrix wrt position
+!    real(kind=8), intent(out) :: myexp, mydexp(3,3) ! The final fc term and dfc matrix. [xyz,atm123]
+!    myexp = (rij(i, j) + rij(i, k) + rij(j, k))**2
+!    mydexp(:,1) = drijdx(:,i,j) + drijdx(:,i,k)
+!    mydexp(:,2) = drijdx(:,j,i) + drijdx(:,j,k)
+!    mydexp(:,3) = drijdx(:,k,i) + drijdx(:,k,j)
+!end subroutine calc_aniangexp
 !
 ! Save the temporary radial basis values to the main basis array
 subroutine save_radbas(i, j, t, e, c, tmp_rad, tmp_drad, rad_bas, rad_grad, max_atom)
@@ -535,21 +615,26 @@ subroutine save_radbas(i, j, t, e, c, tmp_rad, tmp_drad, rad_bas, rad_grad, max_
     ! Basis
         !$OMP ATOMIC UPDATE
             rad_bas(b, c, e) = rad_bas(b, c, e) + tmp_rad(a)
-    ! Gradient for atom 1
-        !$OMP ATOMIC UPDATE
-            rad_grad(1, i, b, c, e) = rad_grad(1, i, b, c, e) + tmp_drad(1, a, 1)
-        !$OMP ATOMIC UPDATE
-            rad_grad(2, i, b, c, e) = rad_grad(2, i, b, c, e) + tmp_drad(2, a, 1)
-        !$OMP ATOMIC UPDATE
-            rad_grad(3, i, b, c, e) = rad_grad(3, i, b, c, e) + tmp_drad(3, a, 1)
-    ! Gradient for atom 2
-        !$OMP ATOMIC UPDATE
-            rad_grad(1, j, b, c, e) = rad_grad(1, j, b, c, e) + tmp_drad(1, a, 2)
-        !$OMP ATOMIC UPDATE
-            rad_grad(2, j, b, c, e) = rad_grad(2, j, b, c, e) + tmp_drad(2, a, 2)
-        !$OMP ATOMIC UPDATE
-            rad_grad(3, j, b, c, e) = rad_grad(3, j, b, c, e) + tmp_drad(3, a, 2)
     enddo
+    if (do_grad .eqv. .true.) then
+        do a=1, rad_size(t,e)
+            b = a + d
+        ! Gradient for atom 1
+            !$OMP ATOMIC UPDATE
+                rad_grad(1, i, b, c, e) = rad_grad(1, i, b, c, e) + tmp_drad(1, a, 1)
+            !$OMP ATOMIC UPDATE
+                rad_grad(2, i, b, c, e) = rad_grad(2, i, b, c, e) + tmp_drad(2, a, 1)
+            !$OMP ATOMIC UPDATE
+                rad_grad(3, i, b, c, e) = rad_grad(3, i, b, c, e) + tmp_drad(3, a, 1)
+        ! Gradient for atom 2
+            !$OMP ATOMIC UPDATE
+                rad_grad(1, j, b, c, e) = rad_grad(1, j, b, c, e) + tmp_drad(1, a, 2)
+            !$OMP ATOMIC UPDATE
+                rad_grad(2, j, b, c, e) = rad_grad(2, j, b, c, e) + tmp_drad(2, a, 2)
+            !$OMP ATOMIC UPDATE
+                rad_grad(3, j, b, c, e) = rad_grad(3, j, b, c, e) + tmp_drad(3, a, 2)
+        enddo
+    endif
 end subroutine save_radbas
 !
 ! Calculate rij and drij
@@ -607,21 +692,22 @@ subroutine calc_radbas(i, j, t, e, rij, drijdx, fc, dfcdx, tmp_rad, tmp_drad,&
 
 
     ! The derivative calculation
-    do k=1, 2 ! Loop over the ith, jth atom
-     do l=1, 3 ! Loop over xyz
-        tmp_drad(l,:,k) = -2 * eta(:,t,e) * (rij(i,j) - rs(:,t,e)) * fc(i, j)
-     enddo
-    enddo
-    do k=1, rad_size(t, e)
-        tmp_drad(:,k,1) = tmp_drad(:,k,1) * drijdx(:, i, j) + dfcdx(:, i, j)
-        tmp_drad(:,k,2) = tmp_drad(:,k,2) * drijdx(:, j, i) + dfcdx(:, j, i)
-    enddo
-    do k=1, 2
-        do l=1, 3 ! Loop over xyz
-           tmp_drad(l,:s,k) = tmp_drad(l,:s,k) * tmp_rad(:s)
+    if (do_grad .eqv. .true.) then
+        do k=1, 2 ! Loop over the ith, jth atom
+         do l=1, 3 ! Loop over xyz
+            tmp_drad(l,:,k) = -2 * eta(:,t,e) * (rij(i,j) - rs(:,t,e)) * fc(i, j)
+         enddo
         enddo
-    enddo
-
+        do k=1, rad_size(t, e)
+            tmp_drad(:,k,1) = tmp_drad(:,k,1) * drijdx(:, i, j) + dfcdx(:, i, j)
+            tmp_drad(:,k,2) = tmp_drad(:,k,2) * drijdx(:, j, i) + dfcdx(:, j, i)
+        enddo
+        do k=1, 2
+            do l=1, 3 ! Loop over xyz
+               tmp_drad(l,:s,k) = tmp_drad(l,:s,k) * tmp_rad(:s)
+            enddo
+        enddo
+    endif
     ! Now multiply by smoothing
     tmp_rad(:s) = tmp_rad(:s) * fc(i,j)
 end subroutine calc_radbas
@@ -694,6 +780,7 @@ subroutine calc_angbas(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     !
     ! NOTE THERE SHOULD BE MULTIPLICATION BY dfc for cosine and gaussian angle derivative terms!!!!
     !
+    if (do_grad .eqv. .true.) then
     do l=1, 3           ! l is counter for looping over i, j, k
        do m=1, nang     ! m is counter for looping over eta zeta lam tuples
         ee = angeta(m,type,e)
@@ -752,8 +839,140 @@ subroutine calc_angbas(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
 #endif
        enddo
     enddo
-
+    endif
 end subroutine calc_angbas
+!
+! Calculate ANI style angular filter functions
+!
+subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
+                       myang, tmp_dang, e)
+    implicit none
+    !
+    ! I/O Variables
+    !
+    integer, intent(in) :: i, j, k, & ! The indices for ith jth and kth atom
+                            natoms, & ! The total number of atoms in the system
+                            type,&    ! Integer for angle type
+                            e         ! el_key(i)
+    real(kind=8), intent(in):: &
+        rij(natoms, natoms),& ! The matrix of smoothing functions for each atom
+        drijdx(3, natoms, natoms) ! The derivative of the above matrix wrt position
+    real(kind=8), intent(in):: &
+        fc(natoms, natoms),& ! The matrix of smoothing functions for each atom
+        dfcdx(3, natoms, natoms),& ! The derivative of the above matrix wrt position
+        coords(3, natoms)
+    real(kind=8), intent(out) :: &
+        myang(max_ezl), tmp_dang(3, max_ezl, 3)
+    !
+    ! Local Variables
+    !
+    ! Intermediate vars for angular funcitons
+    real(kind=8) :: ee, zz, ll, rs, ts ! eta, zeta, lambda term for an angle
+    integer nang ! Number of angles for this type
+    ! Intermediary variables for calculating angular basis functions
+    real*8 :: mycos, myfc,  mydcos(3,3), mytheta
+    real*8 :: mya(max_ezl), myb(max_ezl)
+    real*8 :: da(3), db(3)
+    real*8 :: mydfc(3,3), mydexp(3,3)
+    integer l, m
+    nang = ang_size(type, e)
+
+    !
+    ! Calculate the prerequisite terms
+    !
+    call calc_angcos(rij, drijdx, coords, i, j, k, natoms, mycos, mydcos)
+    call calc_aniangfc(i, j, k, fc, dfcdx, natoms, myfc, mydfc)
+    !
+    ! We just calculate the angular terms explicitly here so no ani fc thing...
+    !
+    !call calc_aniangexp(i, j, k, rij, drijdx, natoms, myexp, mydexp)
+    !
+    ! Calculation for the angular basis functions
+    !
+    mytheta = acos(mycos)
+    mya(:nang) = ( 1 + cos(mytheta - angts(:nang,type,e))) ** angzeta(:nang,type,e)
+    myb(:nang) = exp(-1 * angeta(:nang,type,e) * ((rij(i,j) + rij(i,k))/2 - angrs(:nang, type, e))**2)
+    myang(:nang) = ang_coeff(:nang,type,e) * mya(:) * myb(:) * myfc
+    !
+    ! Calculate the derivatives with respect to fc
+    !
+    !
+    ! NOTE THERE SHOULD BE MULTIPLICATION BY dfc for cosine and gaussian angle derivative terms!!!!
+    !
+    mydexp(:,1) = drijdx(:,i,j) + drijdx(:,i,k)
+    mydexp(:,2) = drijdx(:,j,i)
+    mydexp(:,3) = drijdx(:,k,i)
+    do l=1, 3           ! l is counter for looping over i, j, k
+       do m=1, nang     ! m is counter for looping over eta zeta lam tuples
+        ee = angeta(m,type,e)
+        zz = angzeta(m,type,e)
+        ll = anglam(m,type,e)
+        rs = angrs(m,type,e)
+        ts = angts(m,type,e)
+        ! Derivative with respect to FC
+        tmp_dang(:,m,l) = mya(m) * myb(m) * mydfc(:,l)
+        ! Derivative with respect to gaussian function
+        db = myb(m) * -2 * ee * ((rij(i,j) + rij(i,k))/2 - rs) * mydexp(:,l)
+        tmp_dang(:,m,l) = tmp_dang(:,m,l) + mya(m) * myfc * db(:)
+        ! Derivative with respect to cosine term. This is more complicated because
+        ! we have to deal with theta - theta_s
+        ! as theta = acos( cos(theta) ) then we have to take the derivative of
+        ! cos(  acos(cos(theta)) - theta_s)
+        ! using compound angle formula, you have to take derivative of sin(theta)
+        ! which would be 1 - cos(theta)**2
+        !
+        ! First we take the derivative of cos(theta - theta_s)
+        da = sin(mytheta - ts) / sin(mytheta) * mydcos(:,l)
+        da = zz * (1 + cos(mytheta - ts))**(zz - 1) * da
+        tmp_dang(:,m,l) = tmp_dang(:,m,l) + myb(m) * myfc * da(:)
+        ! Finish out by mulitplying by the 2^-zeta
+        tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m,type,e)
+
+
+#ifdef DEBUGANG
+    ! Note, the equations that produce these values are hardcoded in. This
+    ! could be changed in the future
+   !$OMP CRITICAL
+    if (l.eq.1) print *, "FOR X DIRECTION"
+    if (l.eq.2) print *, "FOR Y DIRECTION"
+    if (l.eq.3) print *, "FOR Z DIRECTION"
+    print 1, 'eta', ee
+    print 1, 'zeta', zz
+    print 1, 'lambda', ll
+    print 5, 'rij, fcij', rij(i,j), fc(i,j)
+    print 5, 'rik, fcik', rij(i,k), fc(i,k)
+    print 5, 'rjk, fcjk', rij(j,k), fc(j,k)
+    print 1, 'cosine', mycos
+    print 5, 'drijdi', drijdx(:,i,j)
+    print 5, 'drijdj', drijdx(:,j,i)
+    print 5, 'drikdi', drijdx(:,i,k)
+    print 5, 'drikdk', drijdx(:,k,i)
+    print 5, 'drjkdj', drijdx(:,j,k)
+    print 5, 'drjkdk', drijdx(:,k,j)
+    print 1, 'gauss term', myb(m)
+    print 1, 'dgauss di',db(1)
+    print 1, 'dgauss dj',db(2)
+    print 1, 'dgauss dk',db(3)
+    print 1, 'cos term', mya(m)
+    print 1, 'dcos di',da(1)
+    print 1, 'dcos dj',da(2)
+    print 1, 'dcos dk',da(3)
+    print 1, 'fc product', myfc
+    print 5, 'dfc di', mydfc(:,1)
+    print 5, 'dfc dj', mydfc(:,2)
+    print 5, 'dfc dk', mydfc(:,3)
+    print 5, 'i final gradient', tmp_dang(1,m,l)
+    print 5, 'j final gradient', tmp_dang(2,m,l)
+    print 5, 'k final gradient', tmp_dang(3,m,l)
+1 format (A15,5x,ES15.8)
+5 format (A15,5x,3(ES15.8,3x))
+    !$OMP END CRITICAL
+#endif
+       enddo
+    enddo
+
+end subroutine calc_aniang
+
 !
 ! Calculate the cosine term and its derivative for the angular basis functions
 subroutine calc_angcos(rij, drijdx, coords, i, j, k, natom, mycos, mydcos)
@@ -1054,11 +1273,25 @@ print *, 'Warning: "geom_file" specified but subroutine was not called with',&
         elseif (words(1)(1:7) .eq. ('element')) then
             exit
         elseif (words(1)(1:9) .eq. 'angletype') then
-            read(words(2), *, err=1550) angtype
+            if (words(2)(:2) .eq. 'bp') then
+                angtype = ANGT_BP
+            elseif (words(2)(:3) .eq. 'ani') then
+                angtype = ANGT_ANI
+            else
+                goto 1550
+            endif
         else
             goto 1050
         endif
     enddo
+
+    ! Signal whether or not we are doingh the gradient stuff
+    if (allocated(grad_key) .eqv. .true.) then
+        do_grad = .True.
+    else
+        do_grad = .False.
+    endif
+
     return
  900 print *, 'Error reading folowing line to words: ', line
     stop 'read_input_header 1'
@@ -1194,9 +1427,13 @@ subroutine setup_element_variables()
     allocate(angeta(max_ezl, max_angles, num_els))
     allocate(angzeta(max_ezl, max_angles, num_els))
     allocate(anglam(max_ezl, max_angles, num_els))
+    allocate(angts(max_ezl, max_angles, num_els))
+    allocate(angrs(max_ezl, max_angles, num_els))
     angeta = 0.0d0
     angzeta = 0.0d0
     anglam = 0.0d0
+    angts = 0.0d0
+    angrs = 0.0d0
     allocate(ang_coeff(max_ezl, max_angles, num_els))
     ang_coeff = 0.0d0
 end subroutine setup_element_variables
@@ -1303,6 +1540,7 @@ subroutine read_elements()
             re = 0
             do while (words(1)(1:3) .ne. 'end')
                 re = re + 1
+                if (re .gt. max_etas) goto 295 
                 read(words(1), *, err=180) rs(re, bt, el)
                 read(words(2), *, err=190) eta(re, bt, el)
                 read(inf, '(A400)', iostat=io) line
@@ -1313,7 +1551,9 @@ subroutine read_elements()
             rad_size(bt, el) = re
 
         enddo
-
+        !
+        ! Read the angles section for the element
+        !
         do at=1, num_angles(el)
             read(inf, '(A400)', err=210) line
             read(line, *, err=212) words(1:3)
@@ -1323,13 +1563,23 @@ subroutine read_elements()
             read(words(3), *, err=215) ang_types(2, at, el)
             read(inf, '(A400)') line
             read(line, *) words(1:3)
-
+            !
+            ! Read a specific angle type
+            !
             re = 0
             do while (words(1)(1:3) .ne. 'end')
+                if (re .gt. max_ezl) goto 300 
                 re = re + 1
-                read(words(1), *, err=230) angeta(re, at, el)
-                read(words(2), *, err=240) angzeta(re, at, el)
-                read(words(3), *, err=250) anglam(re, at, el)
+                if (angtype .eq. ANGT_BP) then
+                   read(words(1), *, err=230) angeta(re, at, el)
+                   read(words(2), *, err=240) angzeta(re, at, el)
+                   read(words(3), *, err=250) anglam(re, at, el)
+                elseif (angtype .eq. ANGT_ANI) then
+                   read(words(1), *, err=275) angeta(re, at, el)
+                   read(words(2), *, err=280) angzeta(re, at, el)
+                   read(words(3), *, err=285) angts(re, at, el)
+                   read(words(4), *, err=290) angrs(re, at, el)
+                endif
                 read(inf, '(A400)', iostat=io) line
                 if (io .ne. 0) goto 220
                 read(line, *, iostat=io) words(1:3)
@@ -1389,11 +1639,29 @@ subroutine read_elements()
 
 250 print *, 'File ended while reading eta during "angles" keyword'
     stop 'read_elements 17'
-260 print *, 'Error reading "end" statements at end of element'
-    print *, 'There should be "end angle" and "end element" on two separate lines'
-    stop 'read_elements 18'
+260 if (words(1)(1:5) .eq. 'angle') then
+        print *, 'The wrong number of angle types was specified for element', el
+        stop 'read_elements 18-1'
+    else
+        print *, 'Error reading "end" statements at end of element'
+        print *, 'There should be "end angle" and "end element" on two separate lines'
+        stop 'read_elements 18'
+    endif
 270 print *, 'Error reading element line, it should have 6 words'
     stop 'read_elements 19'
+275 print *, 'File ended while reading eta during "angles" keyword'
+    stop 'read_elements 20'
+280 print *, 'File ended while reading zeta during "angles" keyword'
+    stop 'read_elements 21'
+285 print *, 'File ended while reading theta_s during "angles" keyword'
+    stop 'read_elements 22'
+290 print *, 'File ended while reading r_s during "angles" keyword'
+    stop 'read_elements 23'
+295 print *, 'Too many bonds! You may need to icrease the max_rs_eta keyword'
+    stop 'read_elements 24'
+300 print *, 'Too many angles! You may need to icrease the max_eta_zeta_lam',&
+             ' keyword'
+    stop 'read_elements 24'
     end subroutine read_elements
 
 end module bp_symfuncs

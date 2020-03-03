@@ -321,6 +321,10 @@ For the input file, list all of the keywords. Then list the BPSF data as per the
 
 \begin{description}[style=unboxed, labelwidth=\linewidth, font=\sffamily\itshape\bfseries , listparindent=0pt, before =\sffamily]
 
+\item[angletype (str)]
+Choose the type of angular symmetry function.
+Can be 'bp' for the Behler-Parinello symmetry functions, 'ani' for ANI-style symmetry functions, 'aniang' for the ANI style symmetry functions without the radial filter (only angular $\theta_s$).
+
 \item[geom\_file (string)]
 The file path to the HDF5 file which contains geometries for calculating BPSF functions.
 This keyword has no effect in library mode, as the calling program will provide the geometries.
@@ -332,7 +336,7 @@ The maximum number of angle types for BPSF calculations over all of the elements
 The maximum number of bond types for BPSF calculations over all of the elements.
 
 \item[max\_eta\_zeta\_lam (int)]
-The maximum number of $\eta$, $\zeta$, and $\lambda$ triplets for all of the elements.
+The maximum number of angular parameter sets for all of the elements.
 This is the maximum angular basis length.
 
 \item[max\_rs\_eta (int)]
@@ -355,6 +359,8 @@ This is the nuber of steps between timing ouptuts when calculating BPSFs from an
 
 \item[verbose (str)]
 Print voluminous information. You must put any string after the keyword as all keywords must have 2 words. 
+
+
 
 \end{description}
 \subsection{BPSF Input}\label{bpsfinput}
