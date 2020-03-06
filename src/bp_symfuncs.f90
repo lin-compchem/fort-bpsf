@@ -531,9 +531,11 @@ subroutine calc_angfc(i, j, k, fc, dfcdx, natoms, myfc, mydfc)
 
 
     myfc = fc(i, j) * fc(i, k) * fc(j, k)
+    if (do_grad .eqv. .true.) then 
     mydfc(:,1) = fc(j,k)*( fc(i,j)*dfcdx(:,i,k) + fc(i,k)*dfcdx(:,i,j) ) ! The ith atom derivatives
     mydfc(:,2) = fc(i,k)*( fc(i,j)*dfcdx(:,j,k) + fc(j,k)*dfcdx(:,j,i) ) ! the jth atom derivatives
-    mydfc(:,3) = fc(i,j)*( fc(i,k)*dfcdx(:,k,j) + fc(j,k)*dfcdx(:,k,i) ) ! the kth atom derivatives
+    mydfc(:,3) = fc(i,j)*( fc(i,k)*dfcdx(:,k,j) + fc(j,k)*dfcdx(:,k,i) ) ! the kth atom derivativesa
+    endif
 end subroutine calc_angfc
 !
 ! Calculate the smoothing function terms for the angular basis set calculations
@@ -546,9 +548,11 @@ subroutine calc_aniangfc(i, j, k, fc, dfcdx, natoms, myfc, mydfc)
     real(kind=8), intent(out) :: myfc, mydfc(3,3) ! The final fc term and dfc matrix. [xyz,atm123]
 
     myfc = fc(i, j) * fc(i, k)
-    mydfc(:,1) = fc(i,j)*dfcdx(:,i,k) + fc(i,k)*dfcdx(:,i,j)! The ith atom derivatives
-    mydfc(:,2) = fc(i,k)*dfcdx(:,j,i) ! The jth atom derivatives
-    mydfc(:,3) = fc(i,j)*dfcdx(:,k,i) ! The kth atom derviatives
+    if (do_grad .eqv. .true.) then
+        mydfc(:,1) = fc(i,j)*dfcdx(:,i,k) + fc(i,k)*dfcdx(:,i,j)! The ith atom derivatives
+        mydfc(:,2) = fc(i,k)*dfcdx(:,j,i) ! The jth atom derivatives
+        mydfc(:,3) = fc(i,j)*dfcdx(:,k,i) ! The kth atom derviatives
+    endif
 end subroutine calc_aniangfc
 !
 ! Calculate the angular exponent basis functions for the BP style angular ones
@@ -569,9 +573,11 @@ subroutine calc_angexp(i, j, k, rij, drijdx, natoms, myexp, mydexp)
         drijdx(3, natoms, natoms) ! The derivative of the above matrix wrt position
     real(kind=8), intent(out) :: myexp, mydexp(3,3) ! The final fc term and dfc matrix. [xyz,atm123]
     myexp = (rij(i, j) + rij(i, k) + rij(j, k))**2
-    mydexp(:,1) = drijdx(:,i,j) + drijdx(:,i,k)
-    mydexp(:,2) = drijdx(:,j,i) + drijdx(:,j,k)
-    mydexp(:,3) = drijdx(:,k,i) + drijdx(:,k,j)
+    if (do_grad .eqv. .true.) then
+        mydexp(:,1) = drijdx(:,i,j) + drijdx(:,i,k)
+        mydexp(:,2) = drijdx(:,j,i) + drijdx(:,j,k)
+        mydexp(:,3) = drijdx(:,k,i) + drijdx(:,k,j)
+    endif
 end subroutine calc_angexp
 !
 ! Calculate the angular exponent basis functions for the BP style angular ones
@@ -902,6 +908,7 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     !
     ! Calculate the derivatives with respect to fc
     !
+    if (do_grad .eqv. .true.) then
     !
     ! NOTE THERE SHOULD BE MULTIPLICATION BY dfc for cosine and gaussian angle derivative terms!!!!
     !
@@ -976,6 +983,7 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
 #endif
        enddo
     enddo
+    endif
 
 end subroutine calc_aniang
 
@@ -993,19 +1001,23 @@ subroutine calc_angcos(rij, drijdx, coords, i, j, k, natom, mycos, mydcos)
 
     mycos = (rij(i,j)**2 + rij(i,k)**2 - rij(j,k)**2) / &
             (2.0 * rij(i,j) * rij(i,k))
+    ! Convert cos(x) to cos(2x) to make periodic...
+    mycos = 2*mycos**2 - 1
     ! Derivative of cos with respect to j, k. 2 is j, 3 is k
     term = 1/(rij(i,j) * rij(i,k))
-    ! Derivative of cos in the j direction
-    mydcos(:,2) = -mycos / rij(i,j) * drijdx(:,j,i)
-    mydcos(:,2) = mydcos(:,2) + term * (coords(:,k) - coords(:,i))
-    ! Derivative of cos in the k direction
-    mydcos(:,3) = -mycos / rij(i,k) * drijdx(:,k,i)
-    mydcos(:,3) = mydcos(:,3) + term * (coords(:,j) - coords(:,i))
-    ! Derivative of cos with respect to i
-!            mydcos(:,1) = -mycos * (rij(i,k) * drijdx(:,i,j) + rij(i,j)*drijdx(:,i,k))
-!            mydcos(:,1) = term * (mydcos(:,1) + 2*coords(:,i,g) - coords(:,j,g) - coords(:,k,g))
-    ! Actually, the derivative is equal and opposite to the sum of dj and dk
-    mydcos(:,1) = -mydcos(:,2)-mydcos(:,3)
+    if (do_grad .eqv. .true.) then
+        ! Derivative of cos in the j direction
+        mydcos(:,2) = -mycos / rij(i,j) * drijdx(:,j,i)
+        mydcos(:,2) = mydcos(:,2) + term * (coords(:,k) - coords(:,i))
+        ! Derivative of cos in the k direction
+        mydcos(:,3) = -mycos / rij(i,k) * drijdx(:,k,i)
+        mydcos(:,3) = mydcos(:,3) + term * (coords(:,j) - coords(:,i))
+        ! Derivative of cos with respect to i
+!                mydcos(:,1) = -mycos * (rij(i,k) * drijdx(:,i,j) + rij(i,j)*drijdx(:,i,k))
+!                mydcos(:,1) = term * (mydcos(:,1) + 2*coords(:,i,g) - coords(:,j,g) - coords(:,k,g))
+        ! Actually, the derivative is equal and opposite to the sum of dj and dk
+        mydcos(:,1) = -mydcos(:,2)-mydcos(:,3)
+    endif
 end subroutine calc_angcos
 !
 ! Calculate fc
