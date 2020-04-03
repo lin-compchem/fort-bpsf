@@ -396,9 +396,9 @@ subroutine clean_up()
 
     ! Begin Subroutine
     do i=1, FInum_els
-       deallocate(rad_bas(i)%b)
-       deallocate(ang_bas(i)%b)
-       deallocate(mol_ids(i)%bas2mol)
+       if(allocated(rad_bas(i)%b)) deallocate(rad_bas(i)%b)
+       if(allocated(ang_bas(i)%b)) deallocate(ang_bas(i)%b)
+       if(allocated(mol_ids(i)%bas2mol)) deallocate(mol_ids(i)%bas2mol)
     enddo
     deallocate(mol2bas)
     if (allocated(cart_grads)) deallocate(cart_grads)
