@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 **/output.h5
 **/.*.swp
 **/.ipynb_checkpoints*
@@ -7,3 +8,6 @@
 **/*.o
 tags
 back
+=======
+./bin/*
+>>>>>>> origin/master
