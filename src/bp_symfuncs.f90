@@ -66,7 +66,7 @@ module bp_symfuncs
     ! used to copy over to ohter variable
     character(len=:), allocatable :: h5_path_cache
     ! h5 key value for cartesian gradients
-    character(len=:), allocatable :: grad_key
+    ! character(len=:), allocatable :: grad_key
 
     ! flag for calculating various angle types.
     enum, bind(C)
@@ -94,7 +94,7 @@ module bp_symfuncs
         integer*4, dimension(:), allocatable :: bas2mol
     end type mol_id
 
-    logical :: do_grad = .True.
+    logical :: do_grad = .False.
 contains
     subroutine calculate_basis(rad_bas, ang_bas, coords, atmnms, natoms, &
                                max_atoms, num_geoms, num_of_els, mol_ids, &
@@ -169,18 +169,16 @@ save_basis: do i=1, num_els
                 :g_num_of_els(i), i)
             mol_ids(i)%bas2mol(bas_s(i):i_end) = g - 1
             mol2bas(1:2,i,g) = [bas_s(i)-1, i_end]
+        
+            if (do_grad .eqv. .true.) then
+                rad_bas(i)%g(:,:,:,bas_s(i):i_end) = &
+                    tmp_rad_grad(:, :, :radbas_length(i), :g_num_of_els(i), i)
+                ang_bas(i)%g(:,:,:,bas_s(i):i_end) = &
+                    tmp_ang_grad(:, :, :angbas_length(i), :g_num_of_els(i), i)
+            endif
             bas_s(i) = i_end + 1
         enddo save_basis
   
-        if (do_grad .eqv. .true.) then
-save_grads: do i=1, num_els
-            i_end = bas_s(i) + g_num_of_els(i) - 1
-            rad_bas(i)%g(:,:,:,bas_s(i):i_end) = &
-                tmp_rad_grad(:, :, :radbas_length(i), :g_num_of_els(i), i)
-            ang_bas(i)%g(:,:,:,bas_s(i):i_end) = &
-                tmp_ang_grad(:, :, :angbas_length(i), :g_num_of_els(i), i)
-            enddo save_grads
-        endif
 
      ! Its time for time
         if (mod(g, timing_interval) .eq. 0) then
@@ -473,9 +471,11 @@ contains
         drijdx(:,:,:) = 0d0
         natom = int(natm,kind=4)
         rad_bas = 0.0d0
-        rad_grad = 0.0d0
         ang_bas = 0.0d0
-        ang_grad = 0.0d0
+        if (do_grad .eqv. .true.) then
+            rad_grad = 0.0d0
+            ang_grad = 0.0d0
+        endif
     end subroutine calc_bp_init_vars
 
 end subroutine calc_bp
@@ -1275,7 +1275,8 @@ implicit none
         elseif (words(1)(1:7) .eq. ('verbose')) then
             read(words(2), *, err=1500) verbose
         elseif (words(1)(1:16) .eq. 'parse_cart_grads') then
-            grad_key = trim(adjustl(line(17:)))
+            ! grad_key = trim(adjustl(line(17:)))
+            do_grad = .true.
         elseif (words(1)(1:9) .eq. ('geom_file')) then
             if (.not. present(h5_path)) then
 print *, 'Warning: "geom_file" specified but subroutine was not called with',&
@@ -1302,13 +1303,6 @@ print *, 'Warning: "geom_file" specified but subroutine was not called with',&
             goto 1050
         endif
     enddo
-
-    ! Signal whether or not we are doingh the gradient stuff
-    if (allocated(grad_key) .eqv. .true.) then
-        do_grad = .True.
-    else
-        do_grad = .False.
-    endif
 
     return
  900 print *, 'Error reading folowing line to words: ', line
@@ -1554,7 +1548,7 @@ subroutine read_elements()
             read(words(2), *, err=170) rad_types(bt, el)
             read(inf, '(A400)') line
             read(line, *) words(1:2)
-
+            ! Count the bonds and record them
             re = 0
             do while (words(1)(1:3) .ne. 'end')
                 re = re + 1
@@ -1567,7 +1561,7 @@ subroutine read_elements()
                 call To_lower(words(1))
             enddo
             rad_size(bt, el) = re
-
+            if (rad_size(bt, el) .gt. max_bas) goto 400
         enddo
         !
         ! Read the angles section for the element
@@ -1604,6 +1598,7 @@ subroutine read_elements()
                 call To_lower(words(1))
             enddo
             ang_size(at, el) = re
+            if (ang_size(at, el) .gt. max_bas) goto 400
         enddo
         ! Wrap up this element. Assert that we have 'end angle' and 'end element'
         read(inf, '(A400)', err=260) line
@@ -1680,6 +1675,8 @@ subroutine read_elements()
 300 print *, 'Too many angles! You may need to icrease the max_eta_zeta_lam',&
              ' keyword'
     stop 'read_elements 24'
+400 print *, 'Error, radial or angular basis exceeds ', max_bas, '. Adjust ',&
+             'the MAXBAS variable in the parameters.h file and recompile'
     end subroutine read_elements
 
 end module bp_symfuncs

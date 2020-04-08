@@ -21,7 +21,7 @@ program save_bp_symfuncs
    call allocate_arrays(rad_bas, ang_bas, atmnm, mol_ids, mol2bas)
    call FI_init_outfile(of_path) 
    ! Get the cartesian gradient from the input file
-   call atom_based_cartgrad(atmnm, natoms)
+   !call atom_based_cartgrad(atmnm, natoms)
    
    call FI_close_input_h5()
 

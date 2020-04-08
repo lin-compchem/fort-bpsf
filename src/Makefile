@@ -12,10 +12,13 @@ ifeq ($(FC), gfortran)
     ALL_FLAGS:= $(ALL_FLAGS) -cpp -J $(MODDIR) -g
 endif
 ifeq ($(FC), ifort)
-    FFLAGS=-fpp -module $(MODDIR) -g
     FFLAGS=-fpp -module $(MODDIR)
     ifneq ($(MAKECMDGOALS), serial)
         FFLAGS+= -qopenmp
+    endif
+	ifeq ($(MAKECMDGOALS), debug)
+        FFLAGS=-fpp -module $(MODDIR) -g 
+
     endif
     CFLAGS= -g
     CFLAGS=
@@ -28,7 +31,7 @@ LIBMOD= $(addprefix $(LIBDIR) ,  bp_symfuncs.mod)
 OBJ= $(addprefix $(OBJDIR)/, str.o bp_symfuncs.o h5_file_info.o tfserving_utils_mod.o tfserving_utils_capi.o tfserving_utils.o tfs_messages.o curler.o fdemo1.o demo1.o )
 default: all
 debug: $(SRC)
-	$(FC)  $(SRC) $(ALL_FLAGS) -Wunused -fcheck=all -g $(LIBS) -o ../bin/gen_symfuncs_debug -O0 
+	$(FC)  $(SRC) $(LIBS) $(FFLAGS) -Wunused -fcheck=all -g $(LIBS) -o ../bin/gen_symfuncs_debug -O0 
 all: $(SRC)
 	$(FC)  $(SRC) $(LIBS) $(FFLAGS) -o ../bin/gen_symfuncs_parallel -O5
 serial: $(SRC)

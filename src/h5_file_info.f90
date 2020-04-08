@@ -27,8 +27,8 @@ module h5_file_info
     type(mol_id), dimension(FInum_els) :: mol_ids
 
     ! dimensions( 3, num_atoms, num_els)
-    double precision, allocatable :: cart_grads(:,:,:)
-    double precision, allocatable :: tmp_grads(:,:,:)
+    ! double precision, allocatable :: cart_grads(:,:,:)
+    ! double precision, allocatable :: tmp_grads(:,:,:)
     ! The below is an array with dimensions(2, number_of_elements, num_geoms)
     ! The 2 are the range of indicies in the larger basis funciton array.
     ! I.e. if in the list of oxygen basis functions, molecule 6 was from indices
@@ -73,7 +73,7 @@ module h5_file_info
 contains
     ! Opens the input file and initializes the module level variables
 subroutine FI_init_from_ifi(if_path)
-    use bp_symfuncs, only: grad_key 
+    ! use bp_symfuncs, only: grad_key 
     implicit none
     ! IO Vars
     character(len=*), intent(in) :: if_path
@@ -97,10 +97,10 @@ subroutine FI_init_from_ifi(if_path)
     call h5dopen_f(ifi, coord_ds_name, coord_in, err)
     call h5dopen_f(ifi, natom_ds_name, natom_in, err)
     if (err .ne. 0) goto 1020
-    if (allocated(grad_key)) then
-        call h5dopen_f(ifi, grad_key, grad_in, err)
-    endif
-    if (err .ne. 0) goto 1060
+    ! if (allocated(grad_key)) then
+    !     call h5dopen_f(ifi, grad_key, grad_in, err)
+    ! endif
+    ! if (err .ne. 0) goto 1060
     !
     ! Retrieve the dataset creation property list, and print the
     ! storage layout.
@@ -159,9 +159,9 @@ subroutine FI_init_from_ifi(if_path)
     stop "init_from_ifi 4"
 1050 print *, "Error, geom file does not exist at path: ", if_path
     stop "init_from_ifi 6"
-1060 print *, "Error opening the cartesian gradients from the file: ", if_path
-    print *, "attempted input key: ", grad_key
-    stop "init_from_ifi 7"
+! 1060 print *, "Error opening the cartesian gradients from the file: ", if_path
+!     print *, "attempted input key: ", grad_key
+!     stop "init_from_ifi 7"
 end subroutine FI_init_from_ifi
  
 ! This subroutine gets data from the HDF5 file and copies it to arrays in
@@ -299,92 +299,96 @@ end subroutine allocate_arrays
 ! Turn the cartesian gradient from the .xyz format to the basis format
 ! 
 ! We copy the values from the tmp_grad array to the array we will save
-subroutine atom_based_cartgrad(atmnms, natoms)
-    use bp_symfuncs, only: num_els, els, grad_key
-    ! I/O variables
-    integer*ANUMKIND, intent(in) :: atmnms(:,:) ! Atomic numbers
-    integer*NATMKIND, intent(in) :: natoms(:)
-    
-    ! Local variables
-    integer el, g, a ! counters for the element, geometry, and number of atoms
-    integer b(num_els) ! counter that keeps track of atom-based index
-    integer*4 err ! HDF5 error flag
-
-    if (.not. allocated(grad_key)) return
-
-    ! This array holds all of the grads as its likely too slow to make a
-    ! whole bunch of individual h5 calls 
-    allocate(tmp_grads(3, max_atoms, num_geoms))
-    allocate(cart_grads(3, maxval(FInum_of_els), num_els))  
-    ! Open the dataset
-    call h5dread_f(grad_in, H5T_NATIVE_DOUBLE, tmp_grads, coord_dims, err)
-    if (err .ne. 0) goto 1030
-    
-    b(:) = 0
-    do g=1, num_geoms
-        do a=1, natoms(g)
-            do el=1, num_els
-                if (atmnms(a, g) .eq. els(el)) then
-                    b(el) = b(el) + 1
-                    cart_grads(:,b(el),el) = tmp_grads(:,a,g)
-                    exit
-                endif 
-            enddo
-        enddo 
-    enddo
-    call h5dclose_f(grad_in, err)
-    deallocate(tmp_grads)
-    call save_cartgrads()
-    return
-    ! Error handling
-1030 print *, "Error reading 'cartesian gradients' into memory"
-     stop 'FI_get_data 4'
-end subroutine atom_based_cartgrad
+!subroutine atom_based_cartgrad(atmnms, natoms)
+!    use bp_symfuncs, only: num_els, els, grad_key
+!    ! I/O variables
+!    integer*ANUMKIND, intent(in) :: atmnms(:,:) ! Atomic numbers
+!    integer*NATMKIND, intent(in) :: natoms(:)
+!    
+!    ! Local variables
+!    integer el, g, a ! counters for the element, geometry, and number of atoms
+!    integer b(num_els) ! counter that keeps track of atom-based index
+!    integer*4 err ! HDF5 error flag
+!
+!    if (.not. allocated(grad_key)) return
+!
+!    ! This array holds all of the grads as its likely too slow to make a
+!    ! whole bunch of individual h5 calls 
+!    allocate(tmp_grads(3, max_atoms, num_geoms))
+!    allocate(cart_grads(3, maxval(FInum_of_els), num_els))  
+!    ! Open the dataset
+!    call h5dread_f(grad_in, H5T_NATIVE_DOUBLE, tmp_grads, coord_dims, err)
+!    if (err .ne. 0) goto 1030
+!    
+!    b(:) = 0
+!    do g=1, num_geoms
+!        do a=1, natoms(g)
+!            do el=1, num_els
+!                if (atmnms(a, g) .eq. els(el)) then
+!                    b(el) = b(el) + 1
+!                    cart_grads(:,b(el),el) = tmp_grads(:,a,g)
+!                    exit
+!                endif 
+!            enddo
+!        enddo 
+!    enddo
+!    call h5dclose_f(grad_in, err)
+!    deallocate(tmp_grads)
+!    call save_cartgrads()
+!    return
+!    ! Error handling
+!1030 print *, "Error reading 'cartesian gradients' into memory"
+!     stop 'FI_get_data 4'
+!end subroutine atom_based_cartgrad
 !
 ! Save the atom-based cartesian gradients to the output file
-subroutine save_cartgrads()
-    use bp_symfuncs, only: num_els
-    
-    ! Local variables
-    integer(kind=4) :: error, el
-    INTEGER(HID_T) :: dspace_id, dset_id ! Dataspace and dataset handles
-    integer(kind=8) :: dims(2)
-    
-    do el=1, num_els
-        dims(1) = 3
-        dims(2) = FInum_of_els(el)
-        CALL h5screate_simple_f(2, dims, dspace_id, error)
-        if (error .ne. 0) goto 1000
-    !
-    ! Create the dataset with default properties.
-    !
-        CALL h5dcreate_f(ofi, ofi_cgrad_names(el), H5T_NATIVE_DOUBLE ,&
-            dspace_id, dset_id, error)
-        if (error .ne. 0) goto 1005
-    !
-    ! Write the data
-    !
-        CALL h5dwrite_f(dset_id, H5T_NATIVE_double,&
-             cart_grads(:, :dims(2), el), dims, error)
-        if (error .ne. 0) goto 1010
-    !
-    ! Close and release resources.
-    !
-        CALL h5dclose_f(dset_id , error)
-        CALL h5sclose_f(dspace_id, error)
-        if (error .ne. 0) goto 1015
-    enddo
-    return
-    ! Error handling
-1000 print *, "Error creating dataspace"
-    stop 'save_cartgrads 1'
-1005 print *, "Error creating dataset"
-    stop 'save_cartgrads 2'
-1010 print *, "Error writing dataset"
-    stop 'save_cartgrads 3'
-1015 print *, "Error closing dataset"
-    stop 'save_cartgrads 4'
-end subroutine save_cartgrads
+!
+! This has been removed because you must rebuild the gradients at the mol level
+! when doing NN training
+!
+!subroutine save_cartgrads()
+!    use bp_symfuncs, only: num_els
+!    
+!    ! Local variables
+!    integer(kind=4) :: error, el
+!    INTEGER(HID_T) :: dspace_id, dset_id ! Dataspace and dataset handles
+!    integer(kind=8) :: dims(2)
+!    
+!    do el=1, num_els
+!        dims(1) = 3
+!        dims(2) = FInum_of_els(el)
+!        CALL h5screate_simple_f(2, dims, dspace_id, error)
+!        if (error .ne. 0) goto 1000
+!    !
+!    ! Create the dataset with default properties.
+!    !
+!        CALL h5dcreate_f(ofi, ofi_cgrad_names(el), H5T_NATIVE_DOUBLE ,&
+!            dspace_id, dset_id, error)
+!        if (error .ne. 0) goto 1005
+!    !
+!    ! Write the data
+!    !
+!        CALL h5dwrite_f(dset_id, H5T_NATIVE_double,&
+!             cart_grads(:, :dims(2), el), dims, error)
+!        if (error .ne. 0) goto 1010
+!    !
+!    ! Close and release resources.
+!    !
+!        CALL h5dclose_f(dset_id , error)
+!        CALL h5sclose_f(dspace_id, error)
+!        if (error .ne. 0) goto 1015
+!    enddo
+!    return
+!    ! Error handling
+!1000 print *, "Error creating dataspace"
+!    stop 'save_cartgrads 1'
+!1005 print *, "Error creating dataset"
+!    stop 'save_cartgrads 2'
+!1010 print *, "Error writing dataset"
+!    stop 'save_cartgrads 3'
+!1015 print *, "Error closing dataset"
+!    stop 'save_cartgrads 4'
+!end subroutine save_cartgrads
 !
 ! Closes the HDF5 interface
 ! Deallocates memory for arrays for this module based on program termination.
@@ -401,7 +405,7 @@ subroutine clean_up()
        if(allocated(mol_ids(i)%bas2mol)) deallocate(mol_ids(i)%bas2mol)
     enddo
     deallocate(mol2bas)
-    if (allocated(cart_grads)) deallocate(cart_grads)
+    ! if (allocated(cart_grads)) deallocate(cart_grads)
     !
     ! Close HDF5 FORTRAN interface.
     !
