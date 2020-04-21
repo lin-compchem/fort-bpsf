@@ -161,6 +161,8 @@ contains
                      max_atoms, g_num_of_els)
 
 ! Copy the temporary basis sets to our main basis
+        ! write(*,2) ang_bas(1)%b(:angbas_length(1),1)
+        ! 2 format(f20.7)
 save_basis: do i=1, num_els
             i_end = bas_s(i) + g_num_of_els(i) - 1
             rad_bas(i)%b(:,bas_s(i):i_end) = tmp_rad_bas(:radbas_length(i), &
@@ -484,7 +486,7 @@ subroutine save_angbas(i, j, k, e, t, c, myang, tmp_dang, ang_bas, ang_grad, max
     ! I/O Variables
     !
     integer, intent(in) :: i, j, k, & ! The index for the ith and jth atoms
-                           t, &       ! The bond type
+                           t, &       ! The angle type
                            e, &       ! el_key(i)
                            c, &       ! atom_basis_index(i)
                            max_atom   ! Size of basis arrays
@@ -495,11 +497,15 @@ subroutine save_angbas(i, j, k, e, t, c, myang, tmp_dang, ang_bas, ang_grad, max
     ! Local Variables
     !
     integer :: a, b, d, l
+    !
+    ! Store the angular basis fucntions
     d = ang_b_ind(t, e) - 1
     do a=1, ang_size(t,e)
         b = a + d
         !$OMP ATOMIC UPDATE
         ang_bas(b, c, e) = ang_bas(b, c, e) + myang(a)
+        
+        !print *, myang(a)
     enddo
     if (do_grad .eqv. .true.) then
         do a=1, ang_size(t,e)
@@ -844,7 +850,7 @@ subroutine calc_angbas(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     print 5, 'j final gradient', tmp_dang(2,m,l)
     print 5, 'k final gradient', tmp_dang(3,m,l)
 1 format (A15,5x,ES15.8)
-5 format (A15,5x,3(ES15.8,3x))
+5 format (A16,5x,3(ES15.8,3x))
     !$OMP END CRITICAL
 #endif
        enddo
@@ -886,7 +892,8 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     real*8 :: mydfc(3,3), mydexp(3,3)
     integer l, m
     nang = ang_size(type, e)
-
+    mya(:) = 0d0
+    myb(:) = 0d0
     !
     ! Calculate the prerequisite terms
     !
@@ -902,9 +909,9 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     mytheta = acos(mycos)
     ! Below differs from implentation in the paper because we multiply by two
     ! In order to make the angle periodic
-    mya(:nang) = ( 1 + cos(2*(mytheta - angts(:nang,type,e)))) ** angzeta(:nang,type,e)
+    mya(:nang) = ang_coeff(:nang,type,e) * ( 1 + cos(2*(mytheta - angts(:nang,type,e)))) ** angzeta(:nang,type,e)
     myb(:nang) = exp(-1 * angeta(:nang,type,e) * ((rij(i,j) + rij(i,k))/2 - angrs(:nang, type, e))**2)
-    myang(:nang) = ang_coeff(:nang,type,e) * mya(:) * myb(:) * myfc
+    myang(:nang) =  mya(:nang) * myb(:nang) * myfc
     !
     ! Calculate the derivatives with respect to fc
     !
@@ -919,7 +926,6 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
        do m=1, nang     ! m is counter for looping over eta zeta lam tuples
         ee = angeta(m,type,e)
         zz = angzeta(m,type,e)
-        ll = anglam(m,type,e)
         rs = angrs(m,type,e)
         ts = angts(m,type,e)
         ! Derivative with respect to FC
@@ -935,11 +941,11 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
         ! which would be 1 - cos(theta)**2
         !
         ! First we take the derivative of cos(2(theta - theta_s))
-        da = 2*sin(mytheta - ts) / sin(mytheta) * mydcos(:,l)
+        da = 2*sin(2*(mytheta - ts)) / sin(mytheta) * mydcos(:,l)
         da = zz * (1 + cos(mytheta - ts))**(zz - 1) * da
-        tmp_dang(:,m,l) = tmp_dang(:,m,l) + myb(m) * myfc * da(:)
+        tmp_dang(:,m,l) = tmp_dang(:,m,l) + myb(m) * myfc * da(:) * ang_coeff(m,type,e)
         ! Finish out by mulitplying by the 2^-zeta
-        tmp_dang(:,m,l) = tmp_dang(:,m,l) * ang_coeff(m,type,e)
+        tmp_dang(:,m,l) = tmp_dang(:,m,l) 
 
 
 #ifdef DEBUGANG
@@ -951,11 +957,15 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     if (l.eq.3) print *, "FOR Z DIRECTION"
     print 1, 'eta', ee
     print 1, 'zeta', zz
-    print 1, 'lambda', ll
+    print 1, 'thetas', ts
+    print 1, 'rs', rs
     print 5, 'rij, fcij', rij(i,j), fc(i,j)
     print 5, 'rik, fcik', rij(i,k), fc(i,k)
     print 5, 'rjk, fcjk', rij(j,k), fc(j,k)
     print 1, 'cosine', mycos
+    print 5, 'dcosoftheta_i', mydcos(:,1)
+    print 5, 'dcosoftheta_j', mydcos(:,2)
+    print 5, 'dcosoftheta_k', mydcos(:,3)
     print 5, 'drijdi', drijdx(:,i,j)
     print 5, 'drijdj', drijdx(:,j,i)
     print 5, 'drikdi', drijdx(:,i,k)
@@ -966,6 +976,7 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     print 1, 'dgauss di',db(1)
     print 1, 'dgauss dj',db(2)
     print 1, 'dgauss dk',db(3)
+    print 1, 'angcoeff',ang_coeff(m,type,e)
     print 1, 'cos term', mya(m)
     print 1, 'dcos di',da(1)
     print 1, 'dcos dj',da(2)
@@ -1561,8 +1572,8 @@ subroutine read_elements()
                 call To_lower(words(1))
             enddo
             rad_size(bt, el) = re
-            if (rad_size(bt, el) .gt. max_bas) goto 400
         enddo
+        if (sum(rad_size(:, el)) .gt. max_bas) goto 400
         !
         ! Read the angles section for the element
         !
@@ -1598,9 +1609,11 @@ subroutine read_elements()
                 call To_lower(words(1))
             enddo
             ang_size(at, el) = re
-            if (ang_size(at, el) .gt. max_bas) goto 400
+            ! Convert the theta_s from degrees to radians
+            angts(:, at, el) = angts(:, at, el) * pi / 180
         enddo
         ! Wrap up this element. Assert that we have 'end angle' and 'end element'
+        if (sum(ang_size(:, el)) .gt. max_bas) goto 405
         read(inf, '(A400)', err=260) line
         read(line, *) words(1)
         if (words(1)(1:3) .ne. 'end') goto 260
@@ -1675,8 +1688,12 @@ subroutine read_elements()
 300 print *, 'Too many angles! You may need to icrease the max_eta_zeta_lam',&
              ' keyword'
     stop 'read_elements 24'
-400 print *, 'Error, radial or angular basis exceeds ', max_bas, '. Adjust ',&
+400 print *, 'Error, radial basis exceeds ', max_bas, '. Adjust ',&
              'the MAXBAS variable in the parameters.h file and recompile'
+    stop 'read_elements 25'
+405 print *, 'Error, angular basis exceeds ', max_bas, '. Adjust ',&
+             'the MAXBAS variable in the parameters.h file and recompile'
+    stop 'read_elements 26'
     end subroutine read_elements
 
 end module bp_symfuncs
