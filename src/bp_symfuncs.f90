@@ -886,7 +886,8 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     real(kind=8) :: ee, zz, ll, rs, ts ! eta, zeta, lambda term for an angle
     integer nang ! Number of angles for this type
     ! Intermediary variables for calculating angular basis functions
-    real*8 :: mycos, myfc,  mydcos(3,3), mytheta
+    real*8 :: mycos, myfc, mytheta
+    real*8 :: mydtheta(3,3) ! Derivative of theta wrt i,j,k (xyz,ijk)
     real*8 :: mya(max_ezl), myb(max_ezl)
     real*8 :: da(3), db(3)
     real*8 :: mydfc(3,3), mydexp(3,3)
@@ -897,20 +898,17 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     !
     ! Calculate the prerequisite terms
     !
-    call calc_angcos(rij, drijdx, coords, i, j, k, natoms, mycos, mydcos)
+    call calc_theta(rij, drijdx, coords, i, j, k, natoms, mytheta, mydtheta)
     call calc_aniangfc(i, j, k, fc, dfcdx, natoms, myfc, mydfc)
-    !
-    ! We just calculate the angular terms explicitly here so no ani fc thing...
-    !
     !call calc_aniangexp(i, j, k, rij, drijdx, natoms, myexp, mydexp)
     !
-    ! Calculation for the angular basis functions
-    !
-    mytheta = acos(mycos)
+    ! Calculation for the angular filter 
     ! Below differs from implentation in the paper because we multiply by two
     ! In order to make the angle periodic
     mya(:nang) = ang_coeff(:nang,type,e) * ( 1 + cos(2*(mytheta - angts(:nang,type,e)))) ** angzeta(:nang,type,e)
+    ! Radial ANI filter
     myb(:nang) = exp(-1 * angeta(:nang,type,e) * ((rij(i,j) + rij(i,k))/2 - angrs(:nang, type, e))**2)
+    ! Put it together
     myang(:nang) =  mya(:nang) * myb(:nang) * myfc
     !
     ! Calculate the derivatives with respect to fc
@@ -930,18 +928,11 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
         ts = angts(m,type,e)
         ! Derivative with respect to FC
         tmp_dang(:,m,l) = mya(m) * myb(m) * mydfc(:,l)
-        ! Derivative with respect to gaussian function
+        ! Derivative with respect to radial filter
         db = myb(m) * -2 * ee * ((rij(i,j) + rij(i,k))/2 - rs) * mydexp(:,l)
+        ! Derivative with respect to angular filter 
         tmp_dang(:,m,l) = tmp_dang(:,m,l) + mya(m) * myfc * db(:)
-        ! Derivative with respect to cosine term. This is more complicated because
-        ! we have to deal with theta - theta_s
-        ! as theta = acos( cos(theta) ) then we have to take the derivative of
-        ! cos(  acos(cos(theta)) - theta_s)
-        ! using compound angle formula, you have to take derivative of sin(theta)
-        ! which would be 1 - cos(theta)**2
-        !
-        ! First we take the derivative of cos(2(theta - theta_s))
-        da = 2*sin(2*(mytheta - ts)) / sin(mytheta) * mydcos(:,l)
+        da = -2 * sin(2*(mytheta - ts)) * mydtheta(:,l)
         da = zz * (1 + cos(mytheta - ts))**(zz - 1) * da
         tmp_dang(:,m,l) = tmp_dang(:,m,l) + myb(m) * myfc * da(:) * ang_coeff(m,type,e)
         ! Finish out by mulitplying by the 2^-zeta
@@ -963,9 +954,9 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     print 5, 'rik, fcik', rij(i,k), fc(i,k)
     print 5, 'rjk, fcjk', rij(j,k), fc(j,k)
     print 1, 'cosine', mycos
-    print 5, 'dcosoftheta_i', mydcos(:,1)
-    print 5, 'dcosoftheta_j', mydcos(:,2)
-    print 5, 'dcosoftheta_k', mydcos(:,3)
+    print 5, 'dtheta_i', mydtheta(:,1)
+    print 5, 'dtheta_j', mydtheta(:,2)
+    print 5, 'dtheta_k', mydtheta(:,3)
     print 5, 'drijdi', drijdx(:,i,j)
     print 5, 'drijdj', drijdx(:,j,i)
     print 5, 'drikdi', drijdx(:,i,k)
@@ -1027,9 +1018,53 @@ subroutine calc_angcos(rij, drijdx, coords, i, j, k, natom, mycos, mydcos)
 !                mydcos(:,1) = -mycos * (rij(i,k) * drijdx(:,i,j) + rij(i,j)*drijdx(:,i,k))
 !                mydcos(:,1) = term * (mydcos(:,1) + 2*coords(:,i,g) - coords(:,j,g) - coords(:,k,g))
         ! Actually, the derivative is equal and opposite to the sum of dj and dk
-        mydcos(:,1) = -mydcos(:,2)-mydcos(:,3)
+        mydcos(:,1) = -1 * (mydcos(:,2) + mydcos(:,3))
     endif
 end subroutine calc_angcos
+!
+! In this subroutine, we caculate theta using the tangent half-angle identity
+! forumla. This method is better numerically conditioned than the dot
+! product identity method. 
+!
+! Here theta = 2tan-1(sintheta / (1+costheta))
+! atan2 is used to "handle robustly the case where the denominator is small"
+subroutine calc_theta(rij, drijdx, coords, i, j, k, natom, theta, mydcos) 
+    implicit none
+    integer, intent(in) :: natom, i, j, k
+    real(kind=8), intent(in) :: rij(natom, natom), drijdx(3, natom, natom), &
+                                coords(3, natom)
+    real(kind=8), intent(out) :: theta, mydcos(3, 3)
+    ! Local variables
+    real(kind=8), dimension(3) :: vij, vik, & ! The vector from the ith to jth atom
+                                  dvij, dvik, & ! The derivative of the angle with respect to the vector
+                                  z ! The unit vector of the norm between vij and vik
+    real :: cosdenom, sinnumer, pmag
+    vij = coords(:,j) - coords(:,i)
+    vik = coords(:,k) - coords(:,i)
+    pmag = rij(i,j) * rij(i, k)
+    z = cross_product(vij, vik) / (rij(i, j) * rij(i,k))
+    sinnumer =  dot_product(cross_product(vij, vik), z)
+    cosdenom = rij(i, j) * rij(i, k) + dot_product(vij, vik)
+    theta = 2 * atan2(sinnumer, cosdenom)
+
+    if (do_grad .eqv. .true.) then
+        dvij = cross_product(vij, z) / rij(i,j)
+        dvik = -1 * cross_product(vik, z) / rij(i,k)
+        mydcos(:,2) = dvij * drijdx(:, j, i)
+        mydcos(:,3) = dvik * drijdx(:, k, i)
+        ! Because the derivative must be opposite and equal to i an j
+        mydcos(:,1) = -1 * (mydcos(:,2) + mydcos(:,3))
+    endif
+end subroutine calc_theta
+!
+! The cross product of the vectors, lifted from Rosetta Code
+function cross_product(a, b)
+    real(kind=8), dimension(3) :: cross_product
+    real(kind=8), dimension(3), intent(in) :: a, b
+    cross_product(1) = a(2)*b(3) - a(3)*b(2)
+    cross_product(2) = a(3)*b(1) - a(1)*b(3)
+    cross_product(3) = a(1)*b(2) - b(1)*a(2)
+end function cross_product
 !
 ! Calculate fc
 ! This is the cutoff function and its derivative
