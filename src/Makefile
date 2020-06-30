@@ -17,13 +17,15 @@ ifeq ($(FC), ifort)
         FFLAGS+= -qopenmp
     endif
 	ifeq ($(MAKECMDGOALS), debug)
-        FFLAGS=-fpp -module $(MODDIR) -g 
-
+        FFLAGS+= -g 
     endif
+    ALL_FLAGS += $(FFLAGS)
     CFLAGS= -g
-    CFLAGS=
 	LIBS+=-L/opt/hdf5-intel-1.10.5/lib -lhdf5_fortran -I/opt/hdf5-intel-1.10.5/include
 endif
+QMMMFLAGS=-DANUMKIND=8 -DNATMKIND=8
+CFLAGS+= $(QMMMFLAGS)
+FFLAGS+= $(QMMMFLAGS)
 LIBDIR= ../lib
 OBJDIR= ../obj
 LIBMOD= $(addprefix $(LIBDIR) , string_functions.mod bp_symfuncs.mod)
@@ -55,7 +57,7 @@ string_functions.mod: str.f90
 	$(FC) -c str.f90 -o str.o
 bp_symfuncs.mod: bp_symfuncs.f90 string_functions.mod
 	$(FC) -c bp_symfuncs.f90 $(ALL_FLAGS) -O3 -o $(LIBDIR)/bp_symfuncs.o
-	mv bp_symfuncs.mod string_functions.mod str.o $(LIBDIR)
+	#mv bp_symfuncs.mod string_functions.mod str.o $(LIBDIR)
 $(OBJDIR)/str.o: str.f90
 	$(FC) -c $< $(FFLAGS) -o $@
 $(OBJDIR)/bp_symfuncs.o: bp_symfuncs.f90 string_functions.mod
