@@ -1,0 +1,4 @@
+libhdf5*
+libcurl*
+libbpsf.a
+!.gitignore
