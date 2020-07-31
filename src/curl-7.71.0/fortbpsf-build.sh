@@ -1,4 +1,4 @@
-./configure --prefix=`readlink -f ../../
+./configure --prefix=`readlink -f ../../`
 make -j8
 cd lib
 make install

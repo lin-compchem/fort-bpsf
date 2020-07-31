@@ -8,5 +8,7 @@
 **/*.o
 tags
 back
+./share
+./share/*
 =======
 >>>>>>> origin/master

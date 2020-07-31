@@ -1,6 +1,7 @@
 FC=gfortran
 SRC=str.f90 bp_symfuncs.f90 h5_file_info.f90 main.f90
-LIBS= -I../obj -lcurl -lstdc++
+#GCCHDF5=-L/usr/lib/x86_64-linux-gnu/hdf5/serial/lib -lhdf5_fortran -lgfortran -I  /usr/lib/x86_64-linux-gnu/hdf5/serial/include
+LIBS= -L../lib -I../obj -I../include -lcurl -lstdc++ -lhdf5_fortran
 MODDIR=../obj
 ifeq ($(FC), gfortran)
     FFLAGS=-cpp -J$(MODDIR) -g 
@@ -8,7 +9,7 @@ ifeq ($(FC), gfortran)
         FFLAGS+= -fopenmp
     endif
     CFLAGS=-g
-    LIBS+=-L/usr/lib/x86_64-linux-gnu/hdf5/serial/lib -lhdf5_fortran -lgfortran -I  /usr/lib/x86_64-linux-gnu/hdf5/serial/include
+    LIBS+= -lgfortran
     ALL_FLAGS:= $(ALL_FLAGS) -cpp -J $(MODDIR) -g
 endif
 ifeq ($(FC), ifort)
@@ -20,7 +21,6 @@ ifeq ($(FC), ifort)
         FFLAGS+= -g 
     endif
     ALL_FLAGS += $(FFLAGS)
-    CFLAGS= -g
 	LIBS+=-L/opt/hdf5-intel-1.10.5/lib -lhdf5_fortran -I/opt/hdf5-intel-1.10.5/include
 endif
 QMMMFLAGS=-DANUMKIND=8 -DNATMKIND=8
@@ -40,19 +40,15 @@ serial: $(SRC)
 	$(FC)  $(SRC) $(LIBS) $(FFLAGS) -o ../bin/gen_symfuncs_serial -O3
 profile: $(SRC)
 	$(FC)  $(SRC) $(LIBS) $(ALL_FLAGS) -g -O5 -pg -o ../bin/gen_symfuncs_profile
-lib: $(LIBMOD)
-	echo "library combiled in ../lib directory"
 clean:
 	@$(RM) *.mod
 	@$(RM) $(OBJDIR)/*.a
 	@$(RM) $(OBJDIR)/*.o
 	@$(RM) $(OBJDIR)/*.mod
 	@$(RM) ../bin/gen_symfuncs*
-	@$(RM) $(LIBDIR)/*.a
-	@$(RM) $(LIBDIR)/*.o
-	@$(RM) $(LIBDIR)/*.mod
-obj: $(OBJ)
-	ar rvs $(OBJDIR)/bplib.a $(OBJ) 
+	@$(RM) $(LIBDIR)/libbpsf.a
+lib: $(OBJ)
+	ar rvs $(LIBDIR)/libbpsf.a $(OBJ) 
 string_functions.mod: str.f90
 	$(FC) -c str.f90 -o str.o
 bp_symfuncs.mod: bp_symfuncs.f90 string_functions.mod
