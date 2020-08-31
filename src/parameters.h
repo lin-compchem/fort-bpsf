@@ -9,14 +9,16 @@
 #endif
 */
 #ifndef ANUMKIND
-#define ANUMKIND 1
+#define ANUMKIND 8
 #endif
 
 #ifndef NATMKIND
-#define NATMKIND 2
+#define NATMKIND 8
 #endif
 
-#define MAXATOM 99 
-#define MAXBAS 150
+#define ANUMKIND 1
+#define NATMKIND 2
+
+#define MAXBAS 6
 #define NUMELS 2
 #define DEBUG

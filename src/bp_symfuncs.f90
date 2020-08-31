@@ -567,7 +567,7 @@ subroutine calc_angexp(i, j, k, rij, drijdx, natoms, myexp, mydexp)
     ! Begin
     ! The gaussian parts that don't depend on eta
     ! the myexp term is written with 2 different expressions. this is
-    ! from the 2018 paper
+    ! from the 2018 paper doi: 10.1063/1.5024577
     !
     ! NOTE the mydexp must be multiplied by 2 and the eta term in the
     ! calling function!
@@ -580,9 +580,9 @@ subroutine calc_angexp(i, j, k, rij, drijdx, natoms, myexp, mydexp)
     real(kind=8), intent(out) :: myexp, mydexp(3,3) ! The final fc term and dfc matrix. [xyz,atm123]
     myexp = (rij(i, j) + rij(i, k) + rij(j, k))**2
     if (do_grad .eqv. .true.) then
-        mydexp(:,1) = drijdx(:,i,j) + drijdx(:,i,k)
-        mydexp(:,2) = drijdx(:,j,i) + drijdx(:,j,k)
-        mydexp(:,3) = drijdx(:,k,i) + drijdx(:,k,j)
+        mydexp(:,1) = drijdx(:,i,j) + drijdx(:,i,k) ! d wrt i
+        mydexp(:,2) = drijdx(:,j,i) + drijdx(:,j,k) ! d wrt j
+        mydexp(:,3) = drijdx(:,k,i) + drijdx(:,k,j) ! d wrt k
     endif
 end subroutine calc_angexp
 !
@@ -655,6 +655,13 @@ end subroutine save_radbas
 !
 ! Calculate rij and drij
 ! This is the pair wise distance term and its derivative
+!
+! NOTE: the drijdx matrix contains the derivatives of rij wrt i in one 
+! triangle and the derivative wrt j in the other triangle. The correct
+! way to read drijx(:, i, j) would be the derivatives of rij wrt i
+! and drijdx(:, j, i) would be the derivatives of rij wrt j
+!    whatever letter is first is what the deritvative is being taken wrt
+! 
 subroutine calc_rij(rij, drijdx, icoords, jcoords, natoms, i, j)
     implicit none
     ! I/O variables
@@ -920,6 +927,7 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     mydexp(:,1) = drijdx(:,i,j) + drijdx(:,i,k)
     mydexp(:,2) = drijdx(:,j,i)
     mydexp(:,3) = drijdx(:,k,i)
+    mydexp = mydexp * 0.5 ! To count for dividing by 2 in the radial filter
     do l=1, 3           ! l is counter for looping over i, j, k
        do m=1, nang     ! m is counter for looping over eta zeta lam tuples
         ee = angeta(m,type,e)
@@ -930,11 +938,14 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
         tmp_dang(:,m,l) = mya(m) * myb(m) * mydfc(:,l)
         ! Derivative with respect to radial filter
         db = myb(m) * -2 * ee * ((rij(i,j) + rij(i,k))/2 - rs) * mydexp(:,l)
-        ! Derivative with respect to angular filter 
-        tmp_dang(:,m,l) = tmp_dang(:,m,l) + mya(m) * myfc * db(:)
-        da = -2 * sin(2*(mytheta - ts)) * mydtheta(:,l)
-        da = zz * (1 + cos(mytheta - ts))**(zz - 1) * da
-        tmp_dang(:,m,l) = tmp_dang(:,m,l) + myb(m) * myfc * da(:) * ang_coeff(m,type,e)
+        db = mya(m) * myfc * db(:)
+        tmp_dang(:,m,l) = tmp_dang(:,m,l) + db(:) 
+        ! Derivative with respect to angular filter and theta 
+        da = -2 * sin(2*(mytheta - ts))
+        da = zz * (1 + cos(2*(mytheta - ts)))**(zz - 1) * da * ang_coeff(m,type,e)
+        da = da * mydtheta(:,l)
+        da = myb(m) * myfc * da(:)
+        tmp_dang(:,m,l) = tmp_dang(:,m,l) + da(:) 
         ! Finish out by mulitplying by the 2^-zeta
         tmp_dang(:,m,l) = tmp_dang(:,m,l) 
 
@@ -1028,32 +1039,32 @@ end subroutine calc_angcos
 !
 ! Here theta = 2tan-1(sintheta / (1+costheta))
 ! atan2 is used to "handle robustly the case where the denominator is small"
-subroutine calc_theta(rij, drijdx, coords, i, j, k, natom, theta, mydcos) 
+subroutine calc_theta(rij, drijdx, coords, i, j, k, natom, theta, mydtheta) 
     implicit none
     integer, intent(in) :: natom, i, j, k
     real(kind=8), intent(in) :: rij(natom, natom), drijdx(3, natom, natom), &
                                 coords(3, natom)
-    real(kind=8), intent(out) :: theta, mydcos(3, 3)
+    real(kind=8), intent(out) :: theta, mydtheta(3, 3)
     ! Local variables
     real(kind=8), dimension(3) :: vij, vik, & ! The vector from the ith to jth atom
                                   dvij, dvik, & ! The derivative of the angle with respect to the vector
+                                  x, & ! The cross product 
                                   z ! The unit vector of the norm between vij and vik
     real :: cosdenom, sinnumer, pmag
     vij = coords(:,j) - coords(:,i)
     vik = coords(:,k) - coords(:,i)
     pmag = rij(i,j) * rij(i, k)
-    z = cross_product(vij, vik) / (rij(i, j) * rij(i,k))
-    sinnumer =  dot_product(cross_product(vij, vik), z)
+    x = cross_product(vij, vik)
+    z = x / norm2(x)
+    sinnumer =  dot_product(x, z)
     cosdenom = rij(i, j) * rij(i, k) + dot_product(vij, vik)
     theta = 2 * atan2(sinnumer, cosdenom)
 
     if (do_grad .eqv. .true.) then
-        dvij = cross_product(vij, z) / rij(i,j)
-        dvik = -1 * cross_product(vik, z) / rij(i,k)
-        mydcos(:,2) = dvij * drijdx(:, j, i)
-        mydcos(:,3) = dvik * drijdx(:, k, i)
+        mydtheta(:,2) = cross_product(vij/rij(i,j), z) / rij(i,j)
+        mydtheta(:,3) = -1 * cross_product(vik/rij(i,k), z) / rij(i,k)
         ! Because the derivative must be opposite and equal to i an j
-        mydcos(:,1) = -1 * (mydcos(:,2) + mydcos(:,3))
+        mydtheta(:,1) = -1 * (mydtheta(:,2) + mydtheta(:,3))
     endif
 end subroutine calc_theta
 !
@@ -1620,7 +1631,7 @@ subroutine read_elements()
             read(words(2), *, err=215) ang_types(1, at, el)
             read(words(3), *, err=215) ang_types(2, at, el)
             read(inf, '(A400)') line
-            read(line, *) words(1:3)
+            read(line, *) words(1)
             !
             ! Read a specific angle type
             !
@@ -1629,10 +1640,14 @@ subroutine read_elements()
                 if (re .gt. max_ezl) goto 300 
                 re = re + 1
                 if (angtype .eq. ANGT_BP) then
+                   read(line, *) words(1:3)
+                   if (io .ne. 0) goto 410
                    read(words(1), *, err=230) angeta(re, at, el)
                    read(words(2), *, err=240) angzeta(re, at, el)
                    read(words(3), *, err=250) anglam(re, at, el)
                 elseif (angtype .eq. ANGT_ANI) then
+                   read(line, *) words(1:4)
+                   if (io .ne. 0) goto 415
                    read(words(1), *, err=275) angeta(re, at, el)
                    read(words(2), *, err=280) angzeta(re, at, el)
                    read(words(3), *, err=285) angts(re, at, el)
@@ -1640,7 +1655,8 @@ subroutine read_elements()
                 endif
                 read(inf, '(A400)', iostat=io) line
                 if (io .ne. 0) goto 220
-                read(line, *, iostat=io) words(1:3)
+                words(:) = ''
+                read(line, *, iostat=io) words(1)
                 call To_lower(words(1))
             enddo
             ang_size(at, el) = re
@@ -1729,6 +1745,10 @@ subroutine read_elements()
 405 print *, 'Error, angular basis exceeds ', max_bas, '. Adjust ',&
              'the MAXBAS variable in the parameters.h file and recompile'
     stop 'read_elements 26'
+410 print *, "Error, not enough floats on angle line for ang parameters ",&
+              "There should be 3 for BP-style symfunctions (eta, zeta, lam)"
+415 print *, "Error, not enough floats on angle line for ang parameters ",&
+              "There should be 4 for ANI symfunctions (eta, zeta, ts, rs)"
     end subroutine read_elements
 
 end module bp_symfuncs
