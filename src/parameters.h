@@ -19,6 +19,6 @@
 #define ANUMKIND 1
 #define NATMKIND 2
 
-#define MAXBAS 6
+#define MAXBAS 151
 #define NUMELS 2
 #define DEBUG
