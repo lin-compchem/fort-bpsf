@@ -17,8 +17,11 @@ Include: apt
     echo "Pulling fort-bpsf from Git"
     git clone https://github.com/lin-compchem/fort-bpsf.git
     echo "Making fort-bpsf"
-    cd fort-bpsf/src
+    cd fort-bpsf/src/hdf5-1.12.0/
+    bash fortbpsf-build.sh
+    cd ../
     make
 
 %runscript
+    export LD_LIBRARY_PATH=/opt/fort-bpsf/lib/${LD_LIBRARY_PATH}
     exec /opt/fort-bpsf/bin/gen_symfuncs_parallel "$@"
