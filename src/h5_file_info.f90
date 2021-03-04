@@ -643,6 +643,70 @@ subroutine get_file_names(h5_path, of_path)
 
    return
 end subroutine get_file_names
+!
+! Gets specific arguments from command line. The input file path should be
+! the first argument and the output file path should be the second port the
+! third and model_name the fourth.
+subroutine get_args(h5_path, of_path, port, model_name)
+   use iso_c_binding
+   implicit none
+   !I/O Vars
+   character(len=:),allocatable, intent(inout) :: h5_path, of_path, model_name
+   integer(c_int32_t) :: port
+   character(len=400) :: arg
+   integer :: length, status
+   integer :: io
+
+   !Begin
+   call get_command_argument(1, value=arg, length=length, status=status)
+   if (status .gt. 0) then
+      print *, "Please specify the input file as the first argument"
+      stop 'get_file_names 1'
+   elseif (status .lt. 0) then
+      print *, "Error retrieving input file command line argument"
+      stop 'get_file_names 2'
+   else
+      h5_path = arg(:length)
+   endif
+   call get_command_argument(2, value=arg, length=length, status=status)
+   if (status .gt. 0) then
+      print *, "Please specify the output file as the second argument"
+      stop 'get_file_names 3'
+   elseif (status .lt. 0) then
+      print *, "Error retrieving output command line argument"
+      stop 'get_file_names 4'
+   else
+      of_path = arg(:length)
+   endif
+   call get_command_argument(3, value=arg, length=length, status=status)
+   if (status .gt. 0) then
+      print *, "Please specify the port number"
+      stop 'get_file_names 5'
+   elseif (status .lt. 0) then
+      print *, "Using port 8504 as the default port"
+      port = 8504
+   else
+      read(arg(:length),*, iostat=io) port
+      if (io .ne. 0) then
+          print *, "Error reading port number as third argument"
+          stop "get args port"
+      endif
+      print *, "Using port ", port, "as the model port"
+   endif
+   call get_command_argument(4, value=arg, length=length, status=status)
+   if (status .gt. 0) then
+       print *, "error reading gradinet name as fourth argument"
+       stop "get args model"
+   elseif (status .lt. 0) then
+       print *, "using gradientmodel as default model name"
+       model_name = "gradient_model"
+   else
+       model_name = arg(:length)
+       print *, "using ", model_name, " as model name"
+   endif
+   return
+end subroutine get_args
+
 ! Opens the output HDF5 file
 subroutine FI_init_outfile(of_path)
     character(len=*), intent(in) :: of_path
