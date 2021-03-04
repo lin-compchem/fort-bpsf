@@ -126,7 +126,7 @@ void TFServer::sendBPSF(double *basis, int *max_bas, int *max_atom,
 void TFServer::sendBPSF(double *basis, int *max_bas, int *max_atom,
                    int *num_bas, int *num_atom, int *num_el, double *energy,
                    double *gradient) {
-    if (verbose) { cout << "Entering sendBPSF" << endl;}
+    // if (verbose) { cout << "Entering sendBPSF" << endl;}
     // Write the JSON string to outstr 
     string basis_json = serialize_bpsf(basis, max_bas, max_atom, num_bas,
             num_atom, num_el);
@@ -187,9 +187,11 @@ string TFServer::serialize_bpsf(double *basis, int *max_bas, int *max_atom,
     writer.EndObject(); // End main object
     
     // For debugging
-    if (verbose) {
+    /*
+    if (TFServer::verbose) {
         cout << "Serialized basis:" << outstr.GetString() << endl;
     }
+    */
 
     return outstr.GetString();
 }

@@ -152,7 +152,7 @@ contains ! Implementation of the functions, we just wrap the C function here
     subroutine wrap_bpsf(tfs, coordinates, num_atoms, atomic_numbers, energy, &
             gradient)
         use bp_symfuncs, only: calc_bp, num_els, max_bas, radbas_length, &
-            angbas_length, bas_length
+            angbas_length, bas_length, do_grad
         !
         ! I/O Variables
         !
@@ -172,13 +172,23 @@ contains ! Implementation of the functions, we just wrap the C function here
         integer s, e
         integer(kind=4) max_atoms
         real(kind=8), allocatable :: nn_grad(:,:,:)
+        logical :: time_calc = .true.
+        integer :: begin_time, end_time, count_rate
         max_atoms = num_atoms
-        gradient = 0 
+        gradient = 0
+        ! If we are coming from QMMM program we need to turn on the grad flag
+        if (present(gradient)) &
+            do_grad = .true.
+
+        call system_clock(begin_time, count_rate)
         !integer el
         call calc_bp(num_atoms, coordinates, atomic_numbers, rad_bas, ang_bas, &
-                     rad_grad, ang_grad, max_atoms, g_num_of_els)        
+                     rad_grad, ang_grad, max_atoms, g_num_of_els)
+        call system_clock(end_time)
+        if (time_calc .eqv. .true.) write(*, 100) real(end_time - begin_time) / real(count_rate)
 
         ! Concatenate the basis functions into the radbas array
+        call system_clock(begin_time)
         do  el=1, num_els
             s = radbas_length(el) + 1
             e = radbas_length(el) + angbas_length(el)
@@ -187,8 +197,11 @@ contains ! Implementation of the functions, we just wrap the C function here
             rad_bas(s:e,:g,el) = ang_bas(:angbas_length(el),:g,el)
             rad_grad(:,:,s:e,:,:) = ang_grad(:,:,:angbas_length(el),:,:)
         enddo
+        call system_clock(end_time)
+        if (time_calc .eqv. .true.) write(*, 110) real(end_time - begin_time) / real(count_rate)
     
         ! Send the concated basis to the server
+        call system_clock(begin_time)
         if (present(gradient)) then
             allocate(nn_grad(max_bas, num_atoms, num_els))
             call tfs%gradBPSF(rad_bas, max_bas, max_atoms, radbas_length(:) + &
@@ -198,8 +211,11 @@ contains ! Implementation of the functions, we just wrap the C function here
                 angbas_length(:), g_num_of_els, num_els, energy)
             return
         endif
+        call system_clock(end_time)
+        if (time_calc .eqv. .true.) write(*, 120) real(end_time - begin_time) / real(count_rate)
 
         !Do the tensor contraction to get the cartesian gradient
+        call system_clock(begin_time)
         do el=1, num_els
           do g=1, g_num_of_els(el)
             do b=1, bas_length(el) 
@@ -209,6 +225,12 @@ contains ! Implementation of the functions, we just wrap the C function here
             enddo 
           enddo
         enddo
-        
+        call system_clock(end_time)
+        if (time_calc .eqv. .true.) write(*, 130) real(end_time - begin_time) / real(count_rate)
+    return
+100 format('Basis function creation took ', f10.2,' seconds')
+110 format('Basis concatenation took ', f10.2,' seconds')
+120 format('TFServing calculation took ', f10.2,' seconds')
+130 format('Gradient tensor contraction took ', f10.2,' seconds')
     end subroutine wrap_bpsf
 end module libtfserver 

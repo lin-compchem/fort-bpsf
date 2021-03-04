@@ -67,9 +67,17 @@ class TFServer {
      */
     std::string serialize_bpsf(double *basis, int *max_bas, int *max_atom,
               int *num_bas, int *num_atom, int *num_el);
-    void write_bas2mol(int num_el, int *num_atom, rapidjson::Writer<rapidjson::GenericStringBuffer<rapidjson::UTF8<char>, rapidjson::CrtAllocator>, rapidjson::UTF8<char>, rapidjson::UTF8<char>, rapidjson::CrtAllocator, 0u>& writer); 
+    //
+    void write_bas2mol(int num_el, int *num_atom,
+        rapidjson::Writer<rapidjson::GenericStringBuffer<rapidjson::UTF8<char>,
+        rapidjson::CrtAllocator>, rapidjson::UTF8<char>, rapidjson::UTF8<char>,
+        rapidjson::CrtAllocator, 0u>& writer);
+    // 
     void write_el_basis(double *basis, int max_bas, int max_atom, int num_bas,
-                    int num_atom, rapidjson::Writer<rapidjson::GenericStringBuffer<rapidjson::UTF8<char>, rapidjson::CrtAllocator>, rapidjson::UTF8<char>, rapidjson::UTF8<char>, rapidjson::CrtAllocator, 0u>& writer);
+        int num_atom,
+        rapidjson::Writer<rapidjson::GenericStringBuffer<rapidjson::UTF8<char>,
+        rapidjson::CrtAllocator>, rapidjson::UTF8<char>, rapidjson::UTF8<char>,
+        rapidjson::CrtAllocator, 0u>& writer);
     std::string send_basis(const char *json);
 };
 //
