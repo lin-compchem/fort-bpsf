@@ -910,9 +910,7 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
     !call calc_aniangexp(i, j, k, rij, drijdx, natoms, myexp, mydexp)
     !
     ! Calculation for the angular filter 
-    ! Below differs from implentation in the paper because we multiply by two
-    ! In order to make the angle periodic
-    mya(:nang) = ( 1 + cos(2*(mytheta - angts(:nang,type,e)))) ** angzeta(:nang,type,e)
+    mya(:nang) = ( 1 + cos(mytheta - angts(:nang,type,e))) ** angzeta(:nang,type,e)
     mya(:nang) = mya(:nang) * ang_coeff(:nang,type,e)
     ! Radial ANI filter
     myb(:nang) = exp(-1 * angeta(:nang,type,e) * ((rij(i,j) + rij(i,k))/2 - angrs(:nang, type, e))**2)
@@ -942,7 +940,7 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
         db = mya(m) * myfc * db(:)
         tmp_dang(:,m,l) = tmp_dang(:,m,l) + db(:) 
         ! Derivative with respect to angular filter and theta 
-        da = -2 * sin(2*(mytheta - ts))
+        da = sin(mytheta - ts)
         da = zz * (1 + cos(2*(mytheta - ts)))**(zz - 1) * da * ang_coeff(m,type,e)
         da = da * mydtheta(:,l)
         da = myb(m) * myfc * da(:)
