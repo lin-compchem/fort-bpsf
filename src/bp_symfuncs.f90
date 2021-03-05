@@ -940,8 +940,8 @@ subroutine calc_aniang(i, j, k, type, rij, drijdx, coords, natoms, fc, dfcdx,&
         db = mya(m) * myfc * db(:)
         tmp_dang(:,m,l) = tmp_dang(:,m,l) + db(:) 
         ! Derivative with respect to angular filter and theta 
-        da = sin(mytheta - ts)
-        da = zz * (1 + cos(2*(mytheta - ts)))**(zz - 1) * da * ang_coeff(m,type,e)
+        da = -1 * sin(mytheta - ts)
+        da = zz * (1 + cos(mytheta - ts))**(zz - 1) * da * ang_coeff(m,type,e)
         da = da * mydtheta(:,l)
         da = myb(m) * myfc * da(:)
         tmp_dang(:,m,l) = tmp_dang(:,m,l) + da(:) 
