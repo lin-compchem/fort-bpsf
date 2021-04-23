@@ -8,8 +8,9 @@ module bp_symfuncs
     integer, parameter :: max_bas = MAXBAS
     logical, parameter :: calc_grad = .true.
     !TODO: Check for good value for max_bas
+    integer :: set_threads = 0
 
-    ! General Variables
+    ! SymFunc Variables
     real(dp) :: Rc = 0.0                  ! Rc cutoff in bp functions
     integer :: num_els = 0                ! Number of elements to calc bf for
     integer :: max_bonds = 0   ! Maximum number of BOND TYPES (categories of rad functions)
@@ -383,7 +384,11 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
     real*8 :: tmp_rad(max_etas), tmp_drad(3, max_etas, 2),&
               tmp_dang(3, max_ezl, 3), myang(max_ezl)
 
-
+    ! Set parallel if called as library
+    if (set_threads .gt. 0) then
+        call OMP_SET_NUM_THREADS(set_threads)
+        print *, "Setting threads to ", set_threads
+    endif
     ! Initialize local variables
     call calc_bp_init_vars
     ! Find the number of atoms for each element.
@@ -1313,6 +1318,8 @@ implicit none
             cycle
 !        elseif (words(1)(1:7) .eq. ('in_file')) then
 !            read(words(2), *) h5_file
+        elseif (words(1)(1:15) .eq. 'omp_num_threads') then
+            read(words(2), *, err=1650) set_threads
         elseif (words(1)(1:2) .eq. ('rc')) then
             read(words(2), *, err=1100) Rc
         elseif (words(1)(1:7) .eq. ('num_els')) then
@@ -1402,6 +1409,8 @@ print *, 'Warning: "geom_file" specified but subroutine was not called with',&
 
 1600 print *, 'Error for line', line, 'Each keyword must have at least 2 words'
     stop 'read_input_header 13'
+1650 print *, 'Error reading omp_num_threads'
+    stop 'read_input_header 14'
 end subroutine read_input_header
 !
 ! Lower-case the string
