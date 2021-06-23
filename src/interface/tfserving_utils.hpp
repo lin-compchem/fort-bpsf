@@ -19,7 +19,7 @@ class TFServer {
               int *num_bas, int *num_atom, int *num_el, double *energy,
               double *gradient);
       void ModelTest1();
-      bool verbose = true;
+      bool verbose = false;
   private:
     int port; // Port for Rest API of Tensorflow Server
     std::string model_name; // Name for Rest API of Tensorflow Server

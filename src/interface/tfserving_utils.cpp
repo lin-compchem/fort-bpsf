@@ -113,7 +113,7 @@ void TFServer::sendBPSF(double *basis, int *max_bas, int *max_atom,
     string post_str = send_basis(basis_json.c_str());
 
     // Parse the response with the messenger object
-    EnGradMessage engrad(post_str, true);
+    EnGradMessage engrad(post_str, verbose);
     energy[0] = engrad.parseEnergy();
     
     if (verbose) {cout << endl << "Leaving sendBPSF" << endl;}
@@ -135,7 +135,7 @@ void TFServer::sendBPSF(double *basis, int *max_bas, int *max_atom,
     string post_str = send_basis(basis_json.c_str());
 
     // Parse the response with the messenger object
-    EnGradMessage engrad(post_str, true);
+    EnGradMessage engrad(post_str, verbose);
     energy[0] = engrad.parseEnergy();
     // Gradient
     string gnames[2] = {"h_basis_grad", "o_basis_grad"};
