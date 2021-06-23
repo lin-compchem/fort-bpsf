@@ -695,7 +695,7 @@ subroutine get_args(h5_path, of_path, port, model_name)
    endif
    call get_command_argument(4, value=arg, length=length, status=status)
    if (status .gt. 0) then
-       print *, "error reading gradinet name as fourth argument"
+       print *, "error reading tfserving model name as fourth argument"
        stop "get args model"
    elseif (status .lt. 0) then
        print *, "using gradientmodel as default model name"
