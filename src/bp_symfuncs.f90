@@ -387,7 +387,6 @@ subroutine calc_bp (natm, coords, atmnms, rad_bas, ang_bas, &
     ! Set parallel if called as library
     if (set_threads .gt. 0) then
         call OMP_SET_NUM_THREADS(set_threads)
-        print *, "Setting threads to ", set_threads
     endif
     ! Initialize local variables
     call calc_bp_init_vars
@@ -1216,6 +1215,8 @@ implicit none
 20 format(A37, 6x, I3)
 80 format(/,A37, 6x, I3)
 30 format(A37, 6x, F6.3)
+90 format(26x, 'Angle Type:', 7x, 'BPSF Angle')
+91 format(26x, 'Angle Type:', 7x, 'ANI Angle')
 !40 format(A35, 5x, A40)
     !
     ! Header variables
@@ -1226,7 +1227,9 @@ implicit none
     print 20, 'Maximum Angle Types:', max_angles
     print 20, 'Maximum Radial Terms:', max_etas
     print 20, 'Maximum Angular Terms:', max_ezl
-
+    print 20, 'Num BPSF OMP Threads:', set_threads
+    if (angtype .eq. ANGT_BP) print 90
+    if (angtype .eq. ANGT_ANI) print 91
 50 format(8x, 17('#'), '   Summary for Element :', I2, 3x, 17('#'))
 60 format(A37, 6x, I3, 4x, I3)
 70 format(A37, 6x, I3, 4x, I3, 4x, I3)
@@ -1254,11 +1257,11 @@ subroutine print_basis(el)
     implicit none
     integer el, type, i
     print 10, els(el)
-10 format(  14x, 10('#'), '  Basis for atomic number ', I3, 2x, 10('#'))
+10 format(  14x, 10('#'), '  Basis for Atomic Number ', I3, 2x, 10('#'))
 !
 !   Radial basis
 !
-20 format(  19x, 5('#'), '  radial basis ', I3, '  -> ', I3, 2x, 5('#'))
+20 format(  19x, 5('#'), '  Radial Basis ', I3, '  -> ', I3, 2x, 5('#'))
 30 format(  29x, 'R_s', 19x, 'eta')
 40 format(  23x, F12.8, 10x, F12.8)
     do type=1, num_bonds(el)
@@ -1274,12 +1277,22 @@ subroutine print_basis(el)
 50 format(  19x, 5('#'), '  Angular basis ', I3 '  <-'  I3, '  -> ', I3, 2x, 5('#'))
 60 format(  15x, 'Eta', 17x, 'Zeta', 15x, 'Lambda')
 70 format(  10x, 3(F12.8,8x))
+80 format(  6x, 'Eta', 17x, 'Zeta', 14x, 'Theta_s', 15x, 'R_s')
+85 format(  4(F12.8,8x))
     do type=1, num_angles(el)
         print 50, ang_types(1, type, el), els(el), ang_types(2, type, el)
+        if (angtype .eq. ANGT_BP) then
         print 60
         do i=1, ang_size(type, el)
             print 70, angeta(i, type, el), angzeta(i, type, el), anglam(i, type, el)
         enddo
+        elseif (angtype .eq. ANGT_ANI) then
+        print 80
+        do i=1, ang_size(type, el)
+        print 85, angeta(i, type, el), angzeta(i, type, el), angts(i, type, el), angrs(i, type, el)
+        enddo
+          
+        endif
     enddo
 end subroutine print_basis
 !
@@ -1589,8 +1602,9 @@ subroutine read_elements()
         read(inf, '(A400)', err=100, iostat=io) line
         call To_lower(line)
         read(line, *) words(1)
-        print *, line
-        print *, 'words', words(1)
+        !uncomment below to print out lines as they are read
+        !print *, line
+        !print *, 'words', words(1)
         if (words(1)(:7) .eq. 'element') exit
     enddo
     if (io .ne. 0) goto 100

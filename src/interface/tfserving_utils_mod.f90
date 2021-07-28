@@ -61,6 +61,9 @@ module libtfserver
     ! Use a fortran type to represent the c++ class in an opaque manner
     type tfserver
         type(c_ptr) :: ptr ! pointer to the TFServer class
+
+        ! Set this flag to time the calculation 
+        logical :: time_calc = .false.
     contains
     ! "We can bind some functions to this type allowing for a cleaner
     !  syntax"
@@ -172,7 +175,6 @@ contains ! Implementation of the functions, we just wrap the C function here
         integer s, e
         integer(kind=4) max_atoms
         real(kind=8), allocatable :: nn_grad(:,:,:)
-        logical :: time_calc = .true.
         integer :: begin_time, end_time, count_rate
         max_atoms = num_atoms
         gradient = 0
@@ -185,7 +187,7 @@ contains ! Implementation of the functions, we just wrap the C function here
         call calc_bp(num_atoms, coordinates, atomic_numbers, rad_bas, ang_bas, &
                      rad_grad, ang_grad, max_atoms, g_num_of_els)
         call system_clock(end_time)
-        if (time_calc .eqv. .true.) write(*, 100) real(end_time - begin_time) / real(count_rate)
+        if (tfs%time_calc .eqv. .true.) write(*, 100) real(end_time - begin_time) / real(count_rate)
 
         ! Concatenate the basis functions into the radbas array
         call system_clock(begin_time)
@@ -198,7 +200,7 @@ contains ! Implementation of the functions, we just wrap the C function here
             rad_grad(:,:,s:e,:,:) = ang_grad(:,:,:angbas_length(el),:,:)
         enddo
         call system_clock(end_time)
-        if (time_calc .eqv. .true.) write(*, 110) real(end_time - begin_time) / real(count_rate)
+        if (tfs%time_calc .eqv. .true.) write(*, 110) real(end_time - begin_time) / real(count_rate)
     
         ! Send the concated basis to the server
         call system_clock(begin_time)
@@ -212,7 +214,7 @@ contains ! Implementation of the functions, we just wrap the C function here
             return
         endif
         call system_clock(end_time)
-        if (time_calc .eqv. .true.) write(*, 120) real(end_time - begin_time) / real(count_rate)
+        if (tfs%time_calc .eqv. .true.) write(*, 120) real(end_time - begin_time) / real(count_rate)
 
         !Do the tensor contraction to get the cartesian gradient
         call system_clock(begin_time)
@@ -226,7 +228,7 @@ contains ! Implementation of the functions, we just wrap the C function here
           enddo
         enddo
         call system_clock(end_time)
-        if (time_calc .eqv. .true.) write(*, 130) real(end_time - begin_time) / real(count_rate)
+        if (tfs%time_calc .eqv. .true.) write(*, 130) real(end_time - begin_time) / real(count_rate)
     return
 100 format('Basis function creation took ', f10.2,' seconds')
 110 format('Basis concatenation took ', f10.2,' seconds')
